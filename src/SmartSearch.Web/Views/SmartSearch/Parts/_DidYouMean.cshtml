@@ -1,0 +1,25 @@
+@*
+    Shown when the name was not found exactly but close matches exist.
+    Clicking a suggestion re-runs the same question for that client (no LLM call).
+*@
+@model NameResolution
+
+<div class="ss-dym" role="region" aria-label="Did you mean">
+    <p class="ss-dym__title">
+        No exact match for <strong>"@Model.Input"</strong>. Did you mean:
+    </p>
+    <ul class="ss-dym__list">
+        @foreach (var s in Model.Suggestions)
+        {
+            <li>
+                <a class="ss-dym__option" href="@s.RerunUrl" data-ss-pick-client="@s.ClientId">
+                    <span class="ss-dym__name">@s.DisplayName</span>
+                    @if (!string.IsNullOrWhiteSpace(s.Detail))
+                    {
+                        <span class="ss-dym__detail">@s.Detail</span>
+                    }
+                </a>
+            </li>
+        }
+    </ul>
+</div>

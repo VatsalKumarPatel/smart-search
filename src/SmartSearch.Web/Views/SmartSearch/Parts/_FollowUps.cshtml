@@ -1,0 +1,10 @@
+@* Suggested next questions, shown as chips. *@
+@model IReadOnlyList<FollowUpSuggestion>
+
+<div class="ss-followups" aria-label="Suggested searches">
+    <span class="ss-followups__label">Try:</span>
+    @foreach (var f in Model)
+    {
+        <a class="ss-chip" href="@f.Url" data-ss-followup="@f.Text">@f.Text</a>
+    }
+</div>

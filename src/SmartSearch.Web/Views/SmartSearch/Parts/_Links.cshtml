@@ -1,0 +1,23 @@
+@*
+    Links to EXISTING EHR pages. URLs are built and permission-checked on the server.
+    Keep data-ss-link so clicks are tracked.
+    Model = (item, compact). Compact = icon/text links for table rows.
+*@
+@model (ResultItem Item, bool Compact)
+@{
+    var item = Model.Item;
+    var cls = Model.Compact ? "ss-links ss-links--compact" : "ss-links";
+}
+@if (item.PrimaryLink is not null || item.SecondaryLinks.Count > 0)
+{
+    <nav class="@cls" aria-label="Actions for @item.Title">
+        @if (item.PrimaryLink is { } primary)
+        {
+            <a class="ss-btn ss-btn--primary" href="@primary.Url" data-ss-link="@primary.Key">@primary.Label</a>
+        }
+        @foreach (var link in item.SecondaryLinks)
+        {
+            <a class="ss-btn ss-btn--ghost" href="@link.Url" data-ss-link="@link.Key">@link.Label</a>
+        }
+    </nav>
+}

@@ -1,0 +1,64 @@
+flowchart TB
+  subgraph UI["Browser - EHR MVC UI"]
+    SB["Smart search box<br/>text + mic button"]
+    MIC["Mic capture<br/>AudioWorklet 16 kHz PCM"]
+    REN["Result renderer<br/>Panel / Cards / List"]
+    DYM["Did you mean<br/>Vatsal Patel? Vatsala Shah?"]
+  end
+
+  subgraph SS["SmartSearch module - .NET 8"]
+    HUB["SpeechHub<br/>SignalR"]
+    API["POST /api/smart-search<br/>JWT, tenant, rate limit"]
+    AUD["Audit writer<br/>HIPAA access log"]
+    P1["1. Clean text"]
+    P2["2. Extract intent<br/>BedrockIntentClassifier"]
+    P3["3. Validate<br/>allow-list, role"]
+    P4["4. Resolve clients"]
+    NM["NameMatcher<br/>Metaphone + Jaro-Winkler<br/>0.92+ match, 0.80-0.92 suggest"]
+    P5["5. Run capabilities<br/>keyed DI, Task.WhenAll"]
+    P6["6. Pick layout<br/>ViewTemplate cache"]
+    P7["7. Build links<br/>ILinkProvider + LinkGenerator"]
+    P8["8. Compose view model"]
+  end
+
+  subgraph AWS["AWS - via PrivateLink"]
+    TR["Amazon Transcribe<br/>streaming"]
+    GR["Bedrock Guardrails"]
+    BR["Amazon Bedrock<br/>Claude Haiku, Converse<br/>tool: search_ehr"]
+  end
+
+  subgraph MOD["Domain modules - via Contracts"]
+    CM["Clients.Module<br/>FindClient + ClientLinkProvider"]
+    VM["Visits.Module<br/>GetLatestVisit + VisitLinkProvider"]
+    PERM["IPermissionService"]
+  end
+
+  subgraph DATA["Data"]
+    DB[("EHR SQL DB<br/>Clients, Visits")]
+    NI[("Name index<br/>phonetic keys")]
+    SST[("SmartSearch tables<br/>ViewTemplate, Preference, QueryLog")]
+  end
+
+  subgraph PAGES["Existing EHR pages"]
+    PC["/Client/{id}/Chart"]
+    PV["/Client/{clientId}/Visit/{id}"]
+  end
+
+  MIC -->|audio| HUB --> TR
+  TR -.->|text| HUB -.->|partial text| SB
+  SB -->|prompt| API
+  API --> AUD --> SST
+  API --> P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7 --> P8
+  P2 <--> BR
+  GR -.-> BR
+  P4 --> NM --> NI
+  NM --> CM
+  P5 --> VM
+  CM --> DB
+  VM --> DB
+  P6 --> SST
+  P7 --> PERM
+  P8 -->|view model| REN
+  P8 -.->|suggestions| DYM
+  REN -->|deep links| PC
+  REN -->|deep links| PV

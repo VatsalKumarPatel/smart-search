@@ -1,0 +1,51 @@
+@*
+    DESIGN PREVIEW (Development only): /smart-search/preview
+    Uses mock data so designers can review every state without Bedrock or a database.
+*@
+@model IReadOnlyList<PreviewScenario>
+@{
+    Layout = null;
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Smart search - design preview</title>
+    <link rel="stylesheet" href="~/_content/SmartSearch.Web/smart-search/smart-search.css" asp-append-version="true" />
+    <style>
+        body { margin: 0; font-family: var(--ss-font); background: var(--ss-page-bg); color: var(--ss-text); }
+        .preview { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+        .preview h1 { font-size: 20px; margin: 0 0 4px; }
+        .preview p.lead { color: var(--ss-text-muted); margin: 0 0 20px; }
+        .preview__scenarios { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 24px; }
+    </style>
+</head>
+<body>
+    <main class="preview">
+        <h1>Smart search - design preview</h1>
+        <p class="lead">Mock data. Pick a state, or type a query (try "vatsl" for did-you-mean). The mic types a demo phrase.</p>
+
+        <div class="preview__scenarios">
+            @foreach (var s in Model)
+            {
+                <button type="button" class="ss-chip" data-preview-query="@s.SampleQuery">@s.Label</button>
+            }
+        </div>
+
+        <partial name="~/Views/SmartSearch/_SearchBox.cshtml"
+                 model='new SearchBoxOptions { ResultsUrl = Url.Action("PreviewResults", "SmartSearch"), SpeechHubUrl = null, DemoMic = true }' />
+    </main>
+
+    <script src="~/_content/SmartSearch.Web/smart-search/smart-search.js" asp-append-version="true"></script>
+    <script>
+        document.querySelectorAll('[data-preview-query]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var root = document.querySelector('[data-ss-root]');
+                root.querySelector('[data-ss-input]').value = b.dataset.previewQuery;
+                root.querySelector('[data-ss-form]').requestSubmit();
+            });
+        });
+    </script>
+</body>
+</html>

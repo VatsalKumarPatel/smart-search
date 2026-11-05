@@ -1,0 +1,5 @@
+@model SearchMessage
+
+<div class="ss-message ss-message--@Model.Kind.ToString().ToLowerInvariant()" role="@(Model.Kind == MessageKind.Error ? "alert" : "status")">
+    @Model.Text
+</div>

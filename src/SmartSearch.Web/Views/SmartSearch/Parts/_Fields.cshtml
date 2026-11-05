@@ -1,0 +1,17 @@
+@* Label / value pairs. Model = (fields, which layout is rendering). *@
+@model (IReadOnlyList<ResultField> Fields, LayoutVisibility For)
+@{
+    var visible = Model.Fields.Where(f => f.ShowIn.HasFlag(Model.For) && f.Type != FieldType.Badge).ToList();
+}
+@if (visible.Count > 0)
+{
+    <dl class="ss-fields ss-fields--@Model.For.ToString().ToLowerInvariant()">
+        @foreach (var f in visible)
+        {
+            <div class="ss-fields__row ss-fields__row--@f.Type.ToString().ToLowerInvariant()" data-field="@f.Key">
+                <dt class="ss-fields__label">@f.Label</dt>
+                <dd class="ss-fields__value">@(string.IsNullOrWhiteSpace(f.Value) ? "—" : f.Value)</dd>
+            </div>
+        }
+    </dl>
+}

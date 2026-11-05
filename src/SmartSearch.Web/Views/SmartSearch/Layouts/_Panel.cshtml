@@ -1,0 +1,35 @@
+@*
+    PANEL - one result, detailed view.
+    DESIGN: restructure freely. Keep data-ss-item and data-ss-link attributes.
+*@
+@model SmartSearchResponse
+
+@foreach (var item in Model.Items)
+{
+    <article class="ss-panel" data-ss-item data-entity-type="@item.EntityType" data-entity-id="@item.EntityId" data-client-id="@item.ClientId" data-rank="@item.Rank">
+        <header class="ss-panel__head">
+            <span class="ss-avatar ss-avatar--lg" aria-hidden="true">@item.Initials</span>
+            <div class="ss-panel__titles">
+                <h3 class="ss-panel__title">
+                    @if (item.PrimaryLink is { } link)
+                    {
+                        <a href="@link.Url" data-ss-link="@link.Key">@item.Title</a>
+                    }
+                    else
+                    {
+                        @item.Title
+                    }
+                </h3>
+                @if (!string.IsNullOrWhiteSpace(item.Subtitle))
+                {
+                    <p class="ss-panel__subtitle">@item.Subtitle</p>
+                }
+            </div>
+            <partial name="~/Views/SmartSearch/Parts/_Badges.cshtml" model="item.Badges" />
+        </header>
+
+        <partial name="~/Views/SmartSearch/Parts/_Fields.cshtml" model="(item.Fields, LayoutVisibility.Panel)" />
+
+        <partial name="~/Views/SmartSearch/Parts/_Links.cshtml" model="(item, false)" />
+    </article>
+}

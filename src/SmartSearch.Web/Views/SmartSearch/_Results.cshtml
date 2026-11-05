@@ -1,0 +1,55 @@
+@*
+    Entry point for every search response. Picks the layout partial.
+    DESIGN: safe to restructure. Keep the data-ss-* attributes (smart-search.js uses them).
+*@
+@model SmartSearchResponse
+
+<section class="ss-results"
+         data-ss-results
+         data-ss-query-id="@Model.QueryId"
+         data-ss-layout-current="@Model.Layout"
+         aria-label="Smart search results">
+
+    @if (Model.Message is not null)
+    {
+        <partial name="~/Views/SmartSearch/Parts/_Message.cshtml" model="Model.Message" />
+    }
+    else
+    {
+        <partial name="~/Views/SmartSearch/Parts/_Header.cshtml" model="Model" />
+
+        @if (Model.NameResolution is { Status: NameResolutionStatus.Suggest } suggest)
+        {
+            <partial name="~/Views/SmartSearch/Parts/_DidYouMean.cshtml" model="suggest" />
+        }
+
+        @switch (Model.Layout)
+        {
+            case ResultLayout.Panel:
+                <partial name="~/Views/SmartSearch/Layouts/_Panel.cshtml" model="Model" />
+                break;
+            case ResultLayout.Cards:
+                <partial name="~/Views/SmartSearch/Layouts/_Cards.cshtml" model="Model" />
+                break;
+            case ResultLayout.List:
+                <partial name="~/Views/SmartSearch/Layouts/_List.cshtml" model="Model" />
+                break;
+            default:
+                if (Model.NameResolution?.Status != NameResolutionStatus.Suggest)
+                {
+                    <partial name="~/Views/SmartSearch/Layouts/_Empty.cshtml" model="Model" />
+                }
+                break;
+        }
+
+        @if (Model.Paging is { TotalPages: > 1 })
+        {
+            <partial name="~/Views/SmartSearch/Parts/_Paging.cshtml" model="Model.Paging" />
+        }
+
+        @if (Model.FollowUps.Count > 0)
+        {
+            <partial name="~/Views/SmartSearch/Parts/_FollowUps.cshtml" model="Model.FollowUps" />
+        }
+    }
+</section>

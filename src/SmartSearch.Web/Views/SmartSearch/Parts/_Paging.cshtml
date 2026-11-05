@@ -1,0 +1,7 @@
+@model PagingInfo
+
+<nav class="ss-paging" aria-label="Result pages">
+    <button type="button" class="ss-btn ss-btn--ghost" data-ss-page="@(Model.Page - 1)" disabled="@(!Model.HasPrevious)">Previous</button>
+    <span class="ss-paging__info">Page @Model.Page of @Model.TotalPages</span>
+    <button type="button" class="ss-btn ss-btn--ghost" data-ss-page="@(Model.Page + 1)" disabled="@(!Model.HasNext)">Next</button>
+</nav>

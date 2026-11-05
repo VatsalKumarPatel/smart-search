@@ -1,0 +1,231 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Search States</title><style>/* =====================================================================
+   Smart Search - interim styles
+   When the final design is ready:
+     1. Update the tokens in :root (colors, radius, spacing, font) - often enough.
+     2. If the layout changes, edit the .cshtml partials and the rules below.
+   All classes are prefixed "ss-" so nothing leaks into the rest of the EHR.
+   ===================================================================== */
+
+:root {
+    --ss-font: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --ss-page-bg: #f6f7f9;
+    --ss-surface: #ffffff;
+    --ss-surface-muted: #f1f3f6;
+    --ss-border: #dde1e7;
+    --ss-border-strong: #c4cad3;
+    --ss-text: #1d2530;
+    --ss-text-muted: #5b6574;
+    --ss-primary: #1f5fae;
+    --ss-primary-hover: #194d8e;
+    --ss-primary-soft: #e8f0fb;
+    --ss-focus: #3b82f6;
+
+    --ss-success-bg: #e6f4ea; --ss-success-fg: #1e6b34;
+    --ss-warning-bg: #fdf3dc; --ss-warning-fg: #8a5a00;
+    --ss-danger-bg:  #fdeaea; --ss-danger-fg:  #a12828;
+    --ss-info-bg:    #e8f0fb; --ss-info-fg:    #1f5fae;
+    --ss-neutral-bg: #eef0f3; --ss-neutral-fg: #4a5361;
+
+    --ss-radius: 8px;
+    --ss-radius-lg: 12px;
+    --ss-gap: 12px;
+    --ss-gap-lg: 20px;
+    --ss-shadow: 0 1px 2px rgba(16, 24, 40, .06);
+}
+
+/* ---------- utilities ---------- */
+.ss-visually-hidden {
+    position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.ss-root { position: relative; font-family: var(--ss-font); color: var(--ss-text); font-size: 14px; line-height: 1.5; }
+.ss-root *, .ss-root *::before, .ss-root *::after { box-sizing: border-box; }
+.ss-root a { color: var(--ss-primary); }
+.ss-root :focus-visible { outline: 2px solid var(--ss-focus); outline-offset: 2px; }
+
+/* ---------- search box ---------- */
+.ss-form {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--ss-surface); border: 1px solid var(--ss-border-strong);
+    border-radius: var(--ss-radius-lg); padding: 6px 6px 6px 14px; box-shadow: var(--ss-shadow);
+}
+.ss-form:focus-within { border-color: var(--ss-primary); box-shadow: 0 0 0 3px var(--ss-primary-soft); }
+.ss-form__icon { color: var(--ss-text-muted); display: inline-flex; }
+.ss-form__input {
+    flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+    font: inherit; font-size: 15px; color: var(--ss-text); padding: 8px 0;
+}
+.ss-form__input::-webkit-search-cancel-button { cursor: pointer; }
+.ss-form__mic, .ss-form__submit {
+    font: inherit; border-radius: var(--ss-radius); cursor: pointer; height: 36px;
+}
+.ss-form__mic {
+    width: 36px; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--ss-border); background: var(--ss-surface); color: var(--ss-text-muted);
+}
+.ss-form__mic:hover { color: var(--ss-primary); border-color: var(--ss-primary); }
+.ss-form__mic[aria-pressed="true"] { background: var(--ss-danger-bg); color: var(--ss-danger-fg); border-color: var(--ss-danger-fg); }
+.ss-form__mic[aria-pressed="true"] svg { animation: ss-pulse 1.2s ease-in-out infinite; }
+.ss-form__mic[hidden] { display: none; }
+.ss-form__submit {
+    padding: 0 18px; border: 0; background: var(--ss-primary); color: #fff; font-weight: 600;
+}
+.ss-form__submit:hover { background: var(--ss-primary-hover); }
+
+.ss-status { min-height: 20px; margin: 6px 2px 0; font-size: 13px; color: var(--ss-text-muted); }
+.ss-output { margin-top: 8px; }
+
+/* ---------- results header ---------- */
+.ss-results { display: flex; flex-direction: column; gap: var(--ss-gap-lg); }
+.ss-header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--ss-gap); flex-wrap: wrap; }
+.ss-header__interpreted { margin: 0; font-size: 15px; }
+.ss-header__label { color: var(--ss-text-muted); }
+.ss-header__count { margin: 2px 0 0; font-size: 13px; color: var(--ss-text-muted); }
+
+.ss-toggle { display: inline-flex; border: 1px solid var(--ss-border); border-radius: var(--ss-radius); overflow: hidden; background: var(--ss-surface); }
+.ss-toggle__btn { font: inherit; font-size: 13px; padding: 6px 14px; border: 0; background: transparent; cursor: pointer; color: var(--ss-text-muted); }
+.ss-toggle__btn + .ss-toggle__btn { border-left: 1px solid var(--ss-border); }
+.ss-toggle__btn[aria-pressed="true"] { background: var(--ss-primary-soft); color: var(--ss-primary); font-weight: 600; }
+
+/* ---------- avatar, badges, buttons ---------- */
+.ss-avatar {
+    flex: none; width: 36px; height: 36px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--ss-primary-soft); color: var(--ss-primary); font-weight: 600; font-size: 13px;
+}
+.ss-avatar--lg { width: 52px; height: 52px; font-size: 18px; }
+
+.ss-badges { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.ss-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ss-badge--success { background: var(--ss-success-bg); color: var(--ss-success-fg); }
+.ss-badge--warning { background: var(--ss-warning-bg); color: var(--ss-warning-fg); }
+.ss-badge--danger  { background: var(--ss-danger-bg);  color: var(--ss-danger-fg); }
+.ss-badge--info    { background: var(--ss-info-bg);    color: var(--ss-info-fg); }
+.ss-badge--neutral { background: var(--ss-neutral-bg); color: var(--ss-neutral-fg); }
+
+.ss-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.ss-btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+    border-radius: var(--ss-radius); font: inherit; font-size: 13px; font-weight: 600;
+    text-decoration: none; cursor: pointer; border: 1px solid transparent; white-space: nowrap;
+}
+.ss-root .ss-btn--primary { background: var(--ss-primary); color: #fff; }
+.ss-root .ss-btn--primary:hover { background: var(--ss-primary-hover); }
+.ss-root .ss-btn--ghost { background: var(--ss-surface); color: var(--ss-primary); border-color: var(--ss-border); }
+.ss-root .ss-btn--ghost:hover { border-color: var(--ss-primary); }
+.ss-btn:disabled { opacity: .45; cursor: default; }
+.ss-links--compact { flex-wrap: nowrap; justify-content: flex-end; }
+.ss-links--compact .ss-btn { height: 28px; padding: 0 10px; font-size: 12px; }
+
+/* ---------- fields ---------- */
+.ss-fields { margin: 0; display: grid; gap: 8px 16px; }
+.ss-fields__row { min-width: 0; }
+.ss-fields__label { font-size: 12px; color: var(--ss-text-muted); }
+.ss-fields__value { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.ss-fields--panel { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); padding: 16px 0; border-top: 1px solid var(--ss-border); border-bottom: 1px solid var(--ss-border); }
+.ss-fields--cards { grid-template-columns: 1fr; }
+.ss-fields--cards .ss-fields__row { display: flex; justify-content: space-between; gap: 12px; }
+.ss-fields--cards .ss-fields__value { text-align: right; }
+
+/* ---------- panel ---------- */
+.ss-panel {
+    background: var(--ss-surface); border: 1px solid var(--ss-border); border-radius: var(--ss-radius-lg);
+    padding: 20px; box-shadow: var(--ss-shadow); display: flex; flex-direction: column; gap: 16px;
+}
+.ss-panel__head { display: flex; align-items: center; gap: 14px; }
+.ss-panel__titles { flex: 1; min-width: 0; }
+.ss-panel__title { margin: 0; font-size: 20px; }
+.ss-panel__title a { text-decoration: none; }
+.ss-panel__title a:hover { text-decoration: underline; }
+.ss-panel__subtitle { margin: 2px 0 0; color: var(--ss-text-muted); }
+
+/* ---------- cards ---------- */
+.ss-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ss-gap); grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.ss-card {
+    height: 100%; background: var(--ss-surface); border: 1px solid var(--ss-border); border-radius: var(--ss-radius-lg);
+    padding: 16px; box-shadow: var(--ss-shadow); display: flex; flex-direction: column; gap: 12px;
+}
+.ss-card:hover { border-color: var(--ss-border-strong); }
+.ss-card__head { display: flex; align-items: center; gap: 10px; }
+.ss-card__titles { min-width: 0; }
+.ss-card__title { margin: 0; font-size: 15px; }
+.ss-card__title a { text-decoration: none; }
+.ss-card__title a:hover { text-decoration: underline; }
+.ss-card__subtitle { margin: 0; font-size: 12px; color: var(--ss-text-muted); }
+.ss-card .ss-links { margin-top: auto; padding-top: 4px; }
+
+/* ---------- list / table ---------- */
+.ss-table-wrap { position: relative; overflow-x: auto; background: var(--ss-surface); border: 1px solid var(--ss-border); border-radius: var(--ss-radius-lg); }
+.ss-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ss-table th, .ss-table td { padding: 10px 14px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--ss-border); }
+.ss-table thead th { background: var(--ss-surface-muted); font-size: 12px; font-weight: 600; color: var(--ss-text-muted); white-space: nowrap; }
+.ss-table tbody tr:last-child > * { border-bottom: 0; }
+.ss-table tbody tr:hover { background: var(--ss-surface-muted); }
+.ss-table tbody th { font-weight: 400; }
+.ss-table__sort { font: inherit; font-weight: 600; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.ss-table__sort::after { content: " \2195"; opacity: .4; }
+th[aria-sort="ascending"] .ss-table__sort::after { content: " \2191"; opacity: 1; }
+th[aria-sort="descending"] .ss-table__sort::after { content: " \2193"; opacity: 1; }
+.ss-table__title { display: block; font-weight: 600; text-decoration: none; }
+.ss-table__subtitle { display: block; font-size: 12px; color: var(--ss-text-muted); }
+.ss-table__actions { width: 1%; }
+
+/* ---------- did you mean ---------- */
+.ss-dym { background: var(--ss-warning-bg); border: 1px solid #f0d9a4; border-radius: var(--ss-radius-lg); padding: 14px 16px; }
+.ss-dym__title { margin: 0 0 10px; }
+.ss-dym__list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.ss-dym__option {
+    display: flex; flex-direction: column; padding: 8px 14px; background: var(--ss-surface);
+    border: 1px solid var(--ss-border); border-radius: var(--ss-radius); text-decoration: none; color: var(--ss-text);
+}
+.ss-dym__option:hover { border-color: var(--ss-primary); }
+.ss-root .ss-dym__name { font-weight: 600; color: var(--ss-primary); }
+.ss-dym__detail { font-size: 12px; color: var(--ss-text-muted); }
+
+/* ---------- follow-ups, paging, empty, message ---------- */
+.ss-followups { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ss-followups__label { font-size: 13px; color: var(--ss-text-muted); }
+.ss-chip {
+    display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 999px; font: inherit; font-size: 13px;
+    background: var(--ss-surface); border: 1px solid var(--ss-border); color: var(--ss-text); text-decoration: none; cursor: pointer;
+}
+.ss-root .ss-chip { color: var(--ss-text); }
+.ss-chip:hover { border-color: var(--ss-primary); color: var(--ss-primary); }
+
+.ss-paging { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.ss-paging__info { font-size: 13px; color: var(--ss-text-muted); }
+
+.ss-empty { text-align: center; padding: 32px 16px; background: var(--ss-surface); border: 1px dashed var(--ss-border-strong); border-radius: var(--ss-radius-lg); }
+.ss-empty__title { margin: 0 0 4px; font-size: 15px; }
+.ss-empty__hint { margin: 0; color: var(--ss-text-muted); }
+
+.ss-message { padding: 12px 16px; border-radius: var(--ss-radius); }
+.ss-message--info    { background: var(--ss-info-bg);    color: var(--ss-info-fg); }
+.ss-message--warning { background: var(--ss-warning-bg); color: var(--ss-warning-fg); }
+.ss-message--error   { background: var(--ss-danger-bg);  color: var(--ss-danger-fg); }
+
+/* ---------- loading skeleton ---------- */
+.ss-loading { display: flex; flex-direction: column; gap: 12px; }
+.ss-skeleton { background: linear-gradient(90deg, var(--ss-surface-muted) 25%, #e6e9ee 37%, var(--ss-surface-muted) 63%); background-size: 400% 100%; border-radius: var(--ss-radius); animation: ss-shimmer 1.4s ease infinite; }
+.ss-skeleton--line { height: 18px; width: 40%; }
+.ss-skeleton-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.ss-skeleton--card { height: 150px; border-radius: var(--ss-radius-lg); }
+
+@keyframes ss-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+@keyframes ss-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .ss-skeleton, .ss-form__mic[aria-pressed="true"] svg { animation: none; } }
+
+/* ---------- small screens ---------- */
+@media (max-width: 640px) {
+    .ss-form__submit { padding: 0 12px; }
+    .ss-panel { padding: 16px; }
+    .ss-panel__head { flex-wrap: wrap; }
+    .ss-table__subtitle { display: none; }
+}
+
+body{margin:0;background:var(--ss-page-bg);font-family:var(--ss-font);color:var(--ss-text)}
+.wrap{max-width:1100px;margin:0 auto;padding:32px 16px 64px} .wrap>h1{font-size:22px;margin:0 0 4px} .wrap>p{color:var(--ss-text-muted);margin:0 0 28px}
+.state{margin-bottom:40px} .state>h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--ss-text-muted);margin:0 0 10px}
+</style></head><body><div class="wrap"><h1>EHR Smart Search - interim UI states</h1>
+<p>Same markup and CSS as the Razor views. Placeholder design until the final design is approved. All data is fictional.</p><section class="state"><h2>1. Search box - voice listening</h2><div class="ss-root"><form class="ss-form" role="search"><span class="ss-form__icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span><input class="ss-form__input" type="search" value="Get me latest visit for" placeholder="Ask anything, e.g. &quot;Get me latest visit for Vatsal&quot;"/><button type="button" class="ss-form__mic" aria-pressed="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><button type="submit" class="ss-form__submit">Search</button></form><p class="ss-status">Listening... speak your question, then press the mic again or Enter.</p></div></section><section class="state"><h2>2. Loading</h2><div class="ss-root"><div class="ss-loading"><div class="ss-skeleton ss-skeleton--line"></div><div class="ss-skeleton-grid"><div class="ss-skeleton ss-skeleton--card"></div><div class="ss-skeleton ss-skeleton--card"></div><div class="ss-skeleton ss-skeleton--card"></div></div></div></div></section><section class="state"><h2>3. Panel - one result</h2><div class="ss-root"><section class="ss-results"><header class="ss-header"><div class="ss-header__text"><p class="ss-header__interpreted"><span class="ss-header__label">Showing</span> Latest visit for clients matching &quot;vatsal patel&quot;</p><p class="ss-header__count">1 result</p></div><div class="ss-toggle" role="group"><button type="button" class="ss-toggle__btn" aria-pressed="true">Detail</button><button type="button" class="ss-toggle__btn" aria-pressed="false">Cards</button></div></header><article class="ss-panel" data-ss-item><header class="ss-panel__head"><span class="ss-avatar ss-avatar--lg">VP</span><div class="ss-panel__titles"><h3 class="ss-panel__title"><a href="#">Vatsal Patel</a></h3><p class="ss-panel__subtitle">DOB 12-Mar-1988 · MRN 100245</p></div><span class="ss-badges"><span class="ss-badge ss-badge--success">Signed</span></span></header><dl class="ss-fields ss-fields--panel"><div class="ss-fields__row ss-fields__row--datetime" data-field="VisitDate"><dt class="ss-fields__label">Last visit</dt><dd class="ss-fields__value">02-Nov-2026 9:30 AM</dd></div><div class="ss-fields__row ss-fields__row--text" data-field="VisitType"><dt class="ss-fields__label">Visit type</dt><dd class="ss-fields__value">Individual therapy</dd></div><div class="ss-fields__row ss-fields__row--person" data-field="ProviderName"><dt class="ss-fields__label">Provider</dt><dd class="ss-fields__value">Dr. Anita Shah</dd></div><div class="ss-fields__row ss-fields__row--text" data-field="Program"><dt class="ss-fields__label">Program</dt><dd class="ss-fields__value">Adult Outpatient</dd></div><div class="ss-fields__row ss-fields__row--text" data-field="Location"><dt class="ss-fields__label">Location</dt><dd class="ss-fields__value">Vadodara Clinic</dd></div></dl><nav class="ss-links" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></article><div class="ss-followups"><span class="ss-followups__label">Try:</span><a class="ss-chip" href="#">Show all visits for Vatsal Patel</a><a class="ss-chip" href="#">Upcoming appointments for Vatsal Patel</a></div></section></div></section><section class="state"><h2>4. Cards - 2 to 6 results</h2><div class="ss-root"><section class="ss-results"><header class="ss-header"><div class="ss-header__text"><p class="ss-header__interpreted"><span class="ss-header__label">Showing</span> Latest visit for clients matching &quot;vatsal&quot;</p><p class="ss-header__count">4 results</p></div><div class="ss-toggle" role="group"><button type="button" class="ss-toggle__btn" aria-pressed="true">Cards</button><button type="button" class="ss-toggle__btn" aria-pressed="false">List</button></div></header><ul class="ss-cards"><li><article class="ss-card" data-ss-item><header class="ss-card__head"><span class="ss-avatar">VP</span><div class="ss-card__titles"><h3 class="ss-card__title"><a href="#">Vatsal Patel</a></h3><p class="ss-card__subtitle">DOB 12-Mar-1988 · MRN 100245</p></div></header><span class="ss-badges"><span class="ss-badge ss-badge--success">Signed</span></span><dl class="ss-fields ss-fields--cards"><div class="ss-fields__row ss-fields__row--datetime" data-field="VisitDate"><dt class="ss-fields__label">Last visit</dt><dd class="ss-fields__value">02-Nov-2026 9:30 AM</dd></div><div class="ss-fields__row ss-fields__row--text" data-field="VisitType"><dt class="ss-fields__label">Visit type</dt><dd class="ss-fields__value">Individual therapy</dd></div><div class="ss-fields__row ss-fields__row--person" data-field="ProviderName"><dt class="ss-fields__label">Provider</dt><dd class="ss-fields__value">Dr. Anita Shah</dd></div></dl><nav class="ss-links" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></article></li><li><article class="ss-card" data-ss-item><header class="ss-card__head"><span class="ss-avatar">VS</span><div class="ss-card__titles"><h3 class="ss-card__title"><a href="#">Vatsal Shah</a></h3><p class="ss-card__subtitle">DOB 04-Jul-1992 · MRN 100871</p></div></header><span class="ss-badges"><span class="ss-badge ss-badge--warning">Draft</span></span><dl class="ss-fields ss-fields--cards"><div class="ss-fields__row ss-fields__row--datetime" data-field="VisitDate"><dt class="ss-fields__label">Last visit</dt><dd class="ss-fields__value">03-Nov-2026 10:30 AM</dd></div><div class="ss-fields__row ss-fields__row--text" data-field="VisitType"><dt class="ss-fields__label">Visit type</dt><dd class="ss-fields__value">Psychiatric eval</dd></div><div class="ss-fields__row ss-fields__row--person" data-field="ProviderName"><dt class="ss-fields__label">Provider</dt><dd class="ss-fields__value">Dr. Mark Lewis</dd></div></dl><nav class="ss-links" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></article></li><li><article class="ss-card" data-ss-item><header class="ss-card__head"><span class="ss-avatar">VM</span><div class="ss-card__titles"><h3 class="ss-card__title"><a href="#">Vatsala Mehta</a></h3><p class="ss-card__subtitle">DOB 19-Jan-1979 · MRN 101552</p></div></header><span class="ss-badges"><span class="ss-badge ss-badge--success">Completed</span></span><dl class="ss-fields ss-fields--cards"><div class="ss-fields__row ss-fields__row--datetime" data-field="VisitDate"><dt class="ss-fields__label">Last visit</dt><dd class="ss-fields__value">04-Nov-2026 11:30 AM</dd></div><div class="ss-fields__row ss-fields__row--text" data-field="VisitType"><dt class="ss-fields__label">Visit type</dt><dd class="ss-fields__value">Medication management</dd></div><div class="ss-fields__row ss-fields__row--person" data-field="ProviderName"><dt class="ss-fields__label">Provider</dt><dd class="ss-fields__value">Priya Nair, LCSW</dd></div></dl><nav class="ss-links" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></article></li><li><article class="ss-card" data-ss-item><header class="ss-card__head"><span class="ss-avatar">RV</span><div class="ss-card__titles"><h3 class="ss-card__title"><a href="#">Ravi Vatsal</a></h3><p class="ss-card__subtitle">DOB 28-Nov-2001 · MRN 102310</p></div></header><span class="ss-badges"><span class="ss-badge ss-badge--danger">No show</span></span><dl class="ss-fields ss-fields--cards"><div class="ss-fields__row ss-fields__row--datetime" data-field="VisitDate"><dt class="ss-fields__label">Last visit</dt><dd class="ss-fields__value">05-Nov-2026 12:30 AM</dd></div><div class="ss-fields__row ss-fields__row--text" data-field="VisitType"><dt class="ss-fields__label">Visit type</dt><dd class="ss-fields__value">Group session</dd></div><div class="ss-fields__row ss-fields__row--person" data-field="ProviderName"><dt class="ss-fields__label">Provider</dt><dd class="ss-fields__value">Dr. Omar Haddad</dd></div></dl><nav class="ss-links" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></article></li></ul><div class="ss-followups"><span class="ss-followups__label">Try:</span><a class="ss-chip" href="#">Only visits from last month</a></div></section></div></section><section class="state"><h2>5. List - 7+ results</h2><div class="ss-root"><section class="ss-results"><header class="ss-header"><div class="ss-header__text"><p class="ss-header__interpreted"><span class="ss-header__label">Showing</span> Visits for clients matching &quot;patel&quot;</p><p class="ss-header__count">12 results</p></div><div class="ss-toggle" role="group"><button type="button" class="ss-toggle__btn" aria-pressed="false">Cards</button><button type="button" class="ss-toggle__btn" aria-pressed="true">List</button></div></header><div class="ss-table-wrap"><table class="ss-table"><thead><tr><th scope="col" data-ss-sortable aria-sort="ascending"><button type="button" class="ss-table__sort">Client</button></th><th scope="col" data-ss-sortable aria-sort="none"><button type="button" class="ss-table__sort">Last visit</button></th><th scope="col" data-ss-sortable aria-sort="none"><button type="button" class="ss-table__sort">Visit type</button></th><th scope="col" data-ss-sortable aria-sort="none"><button type="button" class="ss-table__sort">Provider</button></th><th scope="col">Status</th><th scope="col"><span class="ss-visually-hidden">Actions</span></th></tr></thead><tbody><tr data-ss-item><th scope="row"><a class="ss-table__title" href="#">Vatsal Patel</a><span class="ss-table__subtitle">DOB 12-Mar-1988 · MRN 100245</span></th><td>02-Nov-2026 9:30 AM</td><td>Individual therapy</td><td>Dr. Anita Shah</td><td><span class="ss-badges"><span class="ss-badge ss-badge--success">Signed</span></span></td><td class="ss-table__actions"><nav class="ss-links ss-links--compact" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></td></tr><tr data-ss-item><th scope="row"><a class="ss-table__title" href="#">Vatsal Shah</a><span class="ss-table__subtitle">DOB 04-Jul-1992 · MRN 100871</span></th><td>03-Nov-2026 10:30 AM</td><td>Psychiatric eval</td><td>Dr. Mark Lewis</td><td><span class="ss-badges"><span class="ss-badge ss-badge--warning">Draft</span></span></td><td class="ss-table__actions"><nav class="ss-links ss-links--compact" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></td></tr><tr data-ss-item><th scope="row"><a class="ss-table__title" href="#">Vatsal Patel</a><span class="ss-table__subtitle">DOB 12-Mar-1988 · MRN 100245</span></th><td>04-Nov-2026 11:30 AM</td><td>Medication management</td><td>Priya Nair, LCSW</td><td><span class="ss-badges"><span class="ss-badge ss-badge--success">Completed</span></span></td><td class="ss-table__actions"><nav class="ss-links ss-links--compact" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></td></tr><tr data-ss-item><th scope="row"><a class="ss-table__title" href="#">Vatsal Shah</a><span class="ss-table__subtitle">DOB 04-Jul-1992 · MRN 100871</span></th><td>05-Nov-2026 12:30 AM</td><td>Group session</td><td>Dr. Omar Haddad</td><td><span class="ss-badges"><span class="ss-badge ss-badge--danger">No show</span></span></td><td class="ss-table__actions"><nav class="ss-links ss-links--compact" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></td></tr><tr data-ss-item><th scope="row"><a class="ss-table__title" href="#">Vatsal Patel</a><span class="ss-table__subtitle">DOB 12-Mar-1988 · MRN 100245</span></th><td>06-Nov-2026 13:30 AM</td><td>Individual therapy</td><td>Dr. Anita Shah</td><td><span class="ss-badges"><span class="ss-badge ss-badge--success">Signed</span></span></td><td class="ss-table__actions"><nav class="ss-links ss-links--compact" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></td></tr><tr data-ss-item><th scope="row"><a class="ss-table__title" href="#">Vatsal Shah</a><span class="ss-table__subtitle">DOB 04-Jul-1992 · MRN 100871</span></th><td>07-Nov-2026 14:30 AM</td><td>Psychiatric eval</td><td>Dr. Mark Lewis</td><td><span class="ss-badges"><span class="ss-badge ss-badge--warning">Draft</span></span></td><td class="ss-table__actions"><nav class="ss-links ss-links--compact" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></td></tr><tr data-ss-item><th scope="row"><a class="ss-table__title" href="#">Vatsal Patel</a><span class="ss-table__subtitle">DOB 12-Mar-1988 · MRN 100245</span></th><td>08-Nov-2026 15:30 AM</td><td>Medication management</td><td>Priya Nair, LCSW</td><td><span class="ss-badges"><span class="ss-badge ss-badge--success">Completed</span></span></td><td class="ss-table__actions"><nav class="ss-links ss-links--compact" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></td></tr><tr data-ss-item><th scope="row"><a class="ss-table__title" href="#">Vatsal Shah</a><span class="ss-table__subtitle">DOB 04-Jul-1992 · MRN 100871</span></th><td>02-Nov-2026 16:30 AM</td><td>Group session</td><td>Dr. Omar Haddad</td><td><span class="ss-badges"><span class="ss-badge ss-badge--danger">No show</span></span></td><td class="ss-table__actions"><nav class="ss-links ss-links--compact" aria-label="Actions"><a class="ss-btn ss-btn--primary" href="#" data-ss-link="VisitDetail">Open visit</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientChart">Client chart</a><a class="ss-btn ss-btn--ghost" href="#" data-ss-link="ClientVisits">All visits</a></nav></td></tr></tbody></table></div><nav class="ss-paging"><button type="button" class="ss-btn ss-btn--ghost" disabled>Previous</button><span class="ss-paging__info">Page 1 of 2</span><button type="button" class="ss-btn ss-btn--ghost">Next</button></nav></section></div></section><section class="state"><h2>6. Did you mean - misspelled name</h2><div class="ss-root"><section class="ss-results"><header class="ss-header"><div class="ss-header__text"><p class="ss-header__interpreted"><span class="ss-header__label">Showing</span> Latest visit for clients matching &quot;vatsl&quot;</p></div></header><div class="ss-dym" role="region"><p class="ss-dym__title">No exact match for <strong>"vatsl"</strong>. Did you mean:</p><ul class="ss-dym__list"><li><a class="ss-dym__option" href="#"><span class="ss-dym__name">Vatsal Patel</span><span class="ss-dym__detail">DOB 12-Mar-1988 · MRN 100245</span></a></li><li><a class="ss-dym__option" href="#"><span class="ss-dym__name">Vatsal Shah</span><span class="ss-dym__detail">DOB 04-Jul-1992 · MRN 100871</span></a></li><li><a class="ss-dym__option" href="#"><span class="ss-dym__name">Vatsala Mehta</span><span class="ss-dym__detail">DOB 19-Jan-1979 · MRN 101552</span></a></li></ul></div></section></div></section><section class="state"><h2>7. No results</h2><div class="ss-root"><section class="ss-results"><header class="ss-header"><div class="ss-header__text"><p class="ss-header__interpreted"><span class="ss-header__label">Showing</span> Latest visit for clients matching &quot;zzqx&quot;</p></div></header><div class="ss-empty"><p class="ss-empty__title">No clients found matching <strong>"zzqx"</strong>.</p><p class="ss-empty__hint">Check the spelling, try a last name, or include a date of birth.</p></div><div class="ss-followups"><span class="ss-followups__label">Try:</span><a class="ss-chip" href="#">Open the regular client search</a></div></section></div></section><section class="state"><h2>8. Error</h2><div class="ss-root"><div class="ss-message ss-message--error" role="alert">Smart search is unavailable right now. Please try again or use the regular client search.</div></div></section></div></body></html>

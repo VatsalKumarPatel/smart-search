@@ -1,0 +1,38 @@
+@*
+    CARDS - a few results, easy to compare (DOB / MRN in subtitle).
+    DESIGN: restructure freely. Keep data-ss-item and data-ss-link attributes.
+*@
+@model SmartSearchResponse
+
+<ul class="ss-cards">
+    @foreach (var item in Model.Items)
+    {
+        <li>
+            <article class="ss-card" data-ss-item data-entity-type="@item.EntityType" data-entity-id="@item.EntityId" data-client-id="@item.ClientId" data-rank="@item.Rank">
+                <header class="ss-card__head">
+                    <span class="ss-avatar" aria-hidden="true">@item.Initials</span>
+                    <div class="ss-card__titles">
+                        <h3 class="ss-card__title">
+                            @if (item.PrimaryLink is { } link)
+                            {
+                                <a href="@link.Url" data-ss-link="@link.Key">@item.Title</a>
+                            }
+                            else
+                            {
+                                @item.Title
+                            }
+                        </h3>
+                        @if (!string.IsNullOrWhiteSpace(item.Subtitle))
+                        {
+                            <p class="ss-card__subtitle">@item.Subtitle</p>
+                        }
+                    </div>
+                </header>
+
+                <partial name="~/Views/SmartSearch/Parts/_Badges.cshtml" model="item.Badges" />
+                <partial name="~/Views/SmartSearch/Parts/_Fields.cshtml" model="(item.Fields, LayoutVisibility.Cards)" />
+                <partial name="~/Views/SmartSearch/Parts/_Links.cshtml" model="(item, false)" />
+            </article>
+        </li>
+    }
+</ul>

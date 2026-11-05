@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" type="device" compressed="false" version="24.0.0">
+  <diagram id="smart-search" name="EHR Smart Search">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="&lt;b&gt;EHR Smart Search - Architecture (.NET 8 + AWS Bedrock + Amazon Transcribe)&lt;/b&gt;" style="text;html=1;fontSize=18;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="0" width="1200" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_ui" value="Browser - EHR MVC UI" style="swimlane;startSize=30;rounded=1;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="360" height="600" as="geometry"/>
+        </mxCell>
+        <mxCell id="ui_search" value="&lt;b&gt;Smart Search box&lt;/b&gt;&lt;br&gt;text input + mic button" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_ui">
+          <mxGeometry x="20" y="50" width="320" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="ui_mic" value="&lt;b&gt;Mic capture&lt;/b&gt;&lt;br&gt;AudioWorklet, 16 kHz PCM chunks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_ui">
+          <mxGeometry x="20" y="150" width="320" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="ui_render" value="&lt;b&gt;Result renderer registry&lt;/b&gt;&lt;br&gt;Panel (1) | Cards (2-6) | List/Table (7+)&lt;br&gt;driven by view model JSON" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_ui">
+          <mxGeometry x="20" y="260" width="320" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ui_dym" value="&lt;b&gt;Did-you-mean block&lt;/b&gt;&lt;br&gt;No exact match for 'vatsl' - Vatsal Patel? Vatsala Shah?&lt;br&gt;click re-runs search pinned to ClientId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_ui">
+          <mxGeometry x="20" y="380" width="320" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ui_toggle" value="&lt;b&gt;Layout toggle + click tracking&lt;/b&gt;&lt;br&gt;?src=smartsearch and q={queryId}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_ui">
+          <mxGeometry x="20" y="500" width="320" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_ss" value="SmartSearch Module (.NET 8 - modular monolith)" style="swimlane;startSize=30;rounded=1;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="40" width="760" height="600" as="geometry"/>
+        </mxCell>
+        <mxCell id="ss_hub" value="&lt;b&gt;SpeechHub (SignalR)&lt;/b&gt;&lt;br&gt;streams audio, pushes partial text" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="20" y="50" width="220" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="ss_api" value="&lt;b&gt;POST /api/smart-search&lt;/b&gt;&lt;br&gt;JWT, Kernel.Tenancy, rate limit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="270" y="50" width="220" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="ss_audit" value="&lt;b&gt;Audit writer&lt;/b&gt;&lt;br&gt;who searched what (HIPAA)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="520" y="50" width="220" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1" value="&lt;b&gt;1. Clean text&lt;/b&gt;&lt;br&gt;trim, length cap, source tag" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="20" y="170" width="160" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2" value="&lt;b&gt;2. Extract intent&lt;/b&gt;&lt;br&gt;BedrockIntentClassifier" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane_ss">
+          <mxGeometry x="200" y="170" width="160" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3" value="&lt;b&gt;3. Validate&lt;/b&gt;&lt;br&gt;allow-list, slot types, role" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="380" y="170" width="160" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4" value="&lt;b&gt;4. Resolve clients&lt;/b&gt;&lt;br&gt;exact, phonetic, fuzzy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_ss">
+          <mxGeometry x="560" y="170" width="180" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5" value="&lt;b&gt;5. Run capabilities&lt;/b&gt;&lt;br&gt;keyed DI, Task.WhenAll" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="560" y="290" width="180" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="p6" value="&lt;b&gt;6. Pick layout&lt;/b&gt;&lt;br&gt;LayoutSelector + ViewTemplate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="380" y="290" width="160" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="p7" value="&lt;b&gt;7. Build links&lt;/b&gt;&lt;br&gt;ILinkProvider + LinkGenerator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="200" y="290" width="160" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="p8" value="&lt;b&gt;8. Compose view model&lt;/b&gt;&lt;br&gt;results + suggestions JSON" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="20" y="290" width="160" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ss_fuzzy" value="&lt;b&gt;NameMatcher (spelling tolerance)&lt;/b&gt;&lt;br&gt;candidates: phonetic key or 2-char prefix&lt;br&gt;rank: Jaro-Winkler + Damerau-Levenshtein&lt;br&gt;score 0.92+ = match, 0.80-0.92 = did you mean" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_ss">
+          <mxGeometry x="380" y="410" width="360" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="ss_cache" value="&lt;b&gt;Template cache (IMemoryCache)&lt;/b&gt;&lt;br&gt;invalidated on template version change" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="20" y="410" width="320" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="ss_tools" value="&lt;b&gt;Tool schema generator&lt;/b&gt;&lt;br&gt;intent enum built from registered capabilities" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="lane_ss">
+          <mxGeometry x="20" y="510" width="320" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_aws" value="AWS (HIPAA-eligible, via VPC PrivateLink)" style="swimlane;startSize=30;rounded=1;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="40" width="360" height="600" as="geometry"/>
+        </mxCell>
+        <mxCell id="aws_tr" value="&lt;b&gt;Amazon Transcribe Streaming&lt;/b&gt;&lt;br&gt;custom vocabulary (clinical terms)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="lane_aws">
+          <mxGeometry x="20" y="50" width="320" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="aws_guard" value="&lt;b&gt;Bedrock Guardrails&lt;/b&gt;&lt;br&gt;prompt injection, off-topic filter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="lane_aws">
+          <mxGeometry x="20" y="170" width="320" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="aws_br" value="&lt;b&gt;Amazon Bedrock&lt;/b&gt;&lt;br&gt;Claude Haiku - Converse API&lt;br&gt;forced tool call: search_ehr&lt;br&gt;keeps names exactly as typed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane_aws">
+          <mxGeometry x="20" y="270" width="320" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="aws_note" value="Prompt only is sent to the LLM - never query results.&lt;br&gt;BAA covers Bedrock + Transcribe.&lt;br&gt;No PHI in application logs." style="shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#ffffff;strokeColor=#d79b00;align=left;spacingLeft=8;" vertex="1" parent="lane_aws">
+          <mxGeometry x="20" y="410" width="320" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_pages" value="Existing EHR pages (deep link targets)" style="swimlane;startSize=30;rounded=1;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="360" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="pg_chart" value="Client Chart - /Client/{id}/Chart" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_pages">
+          <mxGeometry x="20" y="50" width="320" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="pg_visit" value="Visit Details - /Client/{clientId}/Visit/{id}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_pages">
+          <mxGeometry x="20" y="125" width="320" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="pg_visits" value="Visits List - /Client/{id}/Visits" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_pages">
+          <mxGeometry x="20" y="200" width="320" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_mod" value="Domain Modules (referenced only through *.Contracts)" style="swimlane;startSize=30;rounded=1;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="700" width="760" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="mod_clients" value="&lt;b&gt;Clients.Module&lt;/b&gt;&lt;br&gt;FindClientCapability&lt;br&gt;ClientLinkProvider" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="lane_mod">
+          <mxGeometry x="20" y="50" width="340" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="mod_visits" value="&lt;b&gt;Visits.Module&lt;/b&gt;&lt;br&gt;GetLatestVisitCapability, GetVisitsCapability&lt;br&gt;VisitLinkProvider" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="lane_mod">
+          <mxGeometry x="400" y="50" width="340" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="mod_perm" value="&lt;b&gt;IPermissionService&lt;/b&gt;&lt;br&gt;caseload / program / record checks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="lane_mod">
+          <mxGeometry x="20" y="180" width="340" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="mod_contracts" value="&lt;b&gt;SmartSearch.Contracts&lt;/b&gt;&lt;br&gt;ISearchCapability, ILinkProvider, ResultItem&lt;br&gt;(NetArchTest enforced)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="lane_mod">
+          <mxGeometry x="400" y="180" width="340" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_data" value="Data" style="swimlane;startSize=30;rounded=1;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1280" y="700" width="360" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="db_ehr" value="&lt;b&gt;EHR SQL DB&lt;/b&gt;&lt;br&gt;Clients, Visits&lt;br&gt;IX (TenantId, LastName, FirstName)" style="shape=cylinder3;whiteSpace=wrap;html=1;size=10;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="lane_data">
+          <mxGeometry x="20" y="45" width="320" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="db_names" value="&lt;b&gt;Name index&lt;/b&gt;&lt;br&gt;FirstNameKey, LastNameKey (Double Metaphone)&lt;br&gt;indexed with TenantId" style="shape=cylinder3;whiteSpace=wrap;html=1;size=10;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_data">
+          <mxGeometry x="20" y="130" width="320" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="db_ss" value="&lt;b&gt;SmartSearch tables&lt;/b&gt;&lt;br&gt;ViewTemplate, UserPreference, QueryLog" style="shape=cylinder3;whiteSpace=wrap;html=1;size=10;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="lane_data">
+          <mxGeometry x="20" y="215" width="320" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="audio chunks" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="ui_mic" target="ss_hub">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="StartStreamTranscription" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="ss_hub" target="aws_tr">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="590" y="70"/><mxPoint x="1460" y="70"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="partial / final text" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;dashed=1;" edge="1" parent="1" source="ss_hub" target="ui_search">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="prompt (HTTPS)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="ui_search" target="ss_api">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="840" y="108"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="ss_api" target="p1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="ss_api" target="ss_audit">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p1" target="p2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p2" target="p3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p3" target="p4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p4" target="p5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p5" target="p6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p6" target="p7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p7" target="p8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e14" value="Converse + tool schema" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;startArrow=block;" edge="1" parent="1" source="p2" target="aws_br">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="740" y="270"/><mxPoint x="1250" y="270"/><mxPoint x="1250" y="355"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e15" value="applied to" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;dashed=1;" edge="1" parent="1" source="aws_guard" target="aws_br">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e16" value="name as typed" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p4" target="ss_fuzzy">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e17" value="candidates" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="ss_fuzzy" target="db_names">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e18" value="FindClient" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="ss_fuzzy" target="mod_clients">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e19" value="GetLatestVisit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p5" target="mod_visits">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1210" y="365"/><mxPoint x="1210" y="770"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e20" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="mod_visits" target="db_ehr">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e21" value="scoped queries" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="mod_clients" target="db_ehr">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="650" y="1020"/><mxPoint x="1260" y="1020"/><mxPoint x="1260" y="783"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e22" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p6" target="ss_cache">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e23" value="load templates" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;dashed=1;" edge="1" parent="1" source="ss_cache" target="db_ss">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="490" y="660"/><mxPoint x="1660" y="660"/><mxPoint x="1660" y="950"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e24" value="ILinkProvider" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p7" target="mod_contracts">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="740" y="680"/><mxPoint x="1030" y="680"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e25" value="CanView" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;dashed=1;" edge="1" parent="1" source="mod_contracts" target="mod_perm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e26" value="view model JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="p8" target="ui_render">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e27" value="suggestions" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;dashed=1;" edge="1" parent="1" source="p8" target="ui_dym">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e28" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="ss_tools" target="p2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="440" y="580"/><mxPoint x="440" y="245"/><mxPoint x="740" y="245"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e29" value="deep links" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;" edge="1" parent="1" source="ui_toggle" target="lane_pages">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e30" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;dashed=1;" edge="1" parent="1" source="ss_audit" target="db_ss">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1250" y="120"/><mxPoint x="1250" y="950"/></Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,10 @@
+@model IReadOnlyList<Badge>
+@if (Model.Count > 0)
+{
+    <span class="ss-badges">
+        @foreach (var b in Model)
+        {
+            <span class="ss-badge ss-badge--@b.Tone.ToString().ToLowerInvariant()">@b.Text</span>
+        }
+    </span>
+}

@@ -1,0 +1,57 @@
+@*
+    LIST - many results, scannable and sortable.
+    Columns come from the ViewTemplate. Sorting is client-side on the current page
+    (smart-search.js reads data-sort-value).
+*@
+@model SmartSearchResponse
+
+<div class="ss-table-wrap">
+    <table class="ss-table" data-ss-table>
+        <thead>
+            <tr>
+                <th scope="col" data-ss-sortable aria-sort="none"><button type="button" class="ss-table__sort">Client</button></th>
+                @foreach (var col in Model.Columns)
+                {
+                    if (col.Sortable)
+                    {
+                        <th scope="col" data-ss-sortable aria-sort="none"><button type="button" class="ss-table__sort">@col.Label</button></th>
+                    }
+                    else
+                    {
+                        <th scope="col">@col.Label</th>
+                    }
+                }
+                <th scope="col">Status</th>
+                <th scope="col"><span class="ss-visually-hidden">Actions</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr data-ss-item data-entity-type="@item.EntityType" data-entity-id="@item.EntityId" data-client-id="@item.ClientId" data-rank="@item.Rank">
+                    <th scope="row" data-sort-value="@item.Title">
+                        @if (item.PrimaryLink is { } link)
+                        {
+                            <a class="ss-table__title" href="@link.Url" data-ss-link="@link.Key">@item.Title</a>
+                        }
+                        else
+                        {
+                            <span class="ss-table__title">@item.Title</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(item.Subtitle))
+                        {
+                            <span class="ss-table__subtitle">@item.Subtitle</span>
+                        }
+                    </th>
+                    @foreach (var col in Model.Columns)
+                    {
+                        var f = item.Fields.FirstOrDefault(x => x.Key == col.Key);
+                        <td data-col="@col.Key" data-sort-value="@(f?.SortValue ?? f?.Value)">@(string.IsNullOrWhiteSpace(f?.Value) ? "—" : f!.Value)</td>
+                    }
+                    <td><partial name="~/Views/SmartSearch/Parts/_Badges.cshtml" model="item.Badges" /></td>
+                    <td class="ss-table__actions"><partial name="~/Views/SmartSearch/Parts/_Links.cshtml" model="(item, true)" /></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,41 @@
+@* How the prompt was understood + result count + layout toggle. *@
+@model SmartSearchResponse
+@{
+    static string LayoutLabel(ResultLayout l) => l switch
+    {
+        ResultLayout.Panel => "Detail",
+        ResultLayout.Cards => "Cards",
+        ResultLayout.List => "List",
+        _ => l.ToString()
+    };
+}
+
+<header class="ss-header">
+    <div class="ss-header__text">
+        @if (!string.IsNullOrWhiteSpace(Model.InterpretedAs))
+        {
+            <p class="ss-header__interpreted">
+                <span class="ss-header__label">Showing</span> @Model.InterpretedAs
+            </p>
+        }
+        @if (Model.TotalCount > 0)
+        {
+            <p class="ss-header__count">@Model.TotalCount @(Model.TotalCount == 1 ? "result" : "results")</p>
+        }
+    </div>
+
+    @if (Model.Items.Count > 0 && Model.AvailableLayouts.Count > 1)
+    {
+        <div class="ss-toggle" role="group" aria-label="Change layout">
+            @foreach (var layout in Model.AvailableLayouts)
+            {
+                <button type="button"
+                        class="ss-toggle__btn"
+                        data-ss-layout="@layout"
+                        aria-pressed="@(layout == Model.Layout ? "true" : "false")">
+                    @LayoutLabel(layout)
+                </button>
+            }
+        </div>
+    }
+</header>

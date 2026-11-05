@@ -1,0 +1,16 @@
+@* No results and no close name matches. *@
+@model SmartSearchResponse
+
+<div class="ss-empty">
+    <p class="ss-empty__title">
+        @if (Model.NameResolution is { Status: NameResolutionStatus.NotFound } nr)
+        {
+            <text>No clients found matching <strong>"@nr.Input"</strong>.</text>
+        }
+        else
+        {
+            <text>No results found.</text>
+        }
+    </p>
+    <p class="ss-empty__hint">Check the spelling, try a last name, or include a date of birth.</p>
+</div>

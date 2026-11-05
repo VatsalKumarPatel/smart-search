@@ -1,0 +1,57 @@
+@*
+    Smart search box. Drop into any page or the main layout:
+        <partial name="~/Views/SmartSearch/_SearchBox.cshtml" model="new SearchBoxOptions()" />
+    DESIGN: restyle freely. Keep: form[data-ss-form], input[data-ss-input], button[data-ss-mic],
+    [data-ss-status], [data-ss-output] and the two <template> elements.
+*@
+@model SearchBoxOptions
+@{
+    var endpoint = Model.ResultsUrl ?? Url.Action("Results", "SmartSearch")!;
+}
+
+<div class="ss-root"
+     data-ss-root
+     data-ss-endpoint="@endpoint"
+     data-ss-click-url="@(Model.ClickUrl ?? Url.Action("Click", "SmartSearch"))"
+     data-ss-hub="@Model.SpeechHubUrl"
+     data-ss-worklet="@Url.Content("~/_content/SmartSearch.Web/smart-search/pcm-worklet.js")"
+     data-ss-mic-demo="@(Model.DemoMic ? "true" : null)">
+
+    @Html.AntiForgeryToken()
+
+    <form class="ss-form" data-ss-form role="search" action="@endpoint" method="get">
+        <label class="ss-visually-hidden" for="ss-input-@Model.Id">Smart search</label>
+        <span class="ss-form__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        </span>
+        <input id="ss-input-@Model.Id"
+               class="ss-form__input"
+               data-ss-input
+               name="q"
+               type="search"
+               autocomplete="off"
+               maxlength="500"
+               placeholder="@Model.Placeholder" />
+
+        <button type="button" class="ss-form__mic" data-ss-mic aria-label="Search by voice" aria-pressed="false" title="Search by voice">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+
+        <button type="submit" class="ss-form__submit">Search</button>
+    </form>
+
+    <p class="ss-status" data-ss-status role="status" aria-live="polite"></p>
+
+    <div class="ss-output" data-ss-output aria-live="polite"></div>
+
+    @* Shown while a search is running. Designers own this markup. *@
+    <template data-ss-loading>
+        <partial name="~/Views/SmartSearch/Parts/_Loading.cshtml" />
+    </template>
+
+    @* Shown when the request itself fails (network / 500). *@
+    <template data-ss-error>
+        <partial name="~/Views/SmartSearch/Parts/_Message.cshtml"
+                 model='new SearchMessage(MessageKind.Error, "Something went wrong. Please try again.")' />
+    </template>
+</div>
