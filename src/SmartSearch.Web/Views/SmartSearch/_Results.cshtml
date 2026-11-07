@@ -34,6 +34,9 @@
             case ResultLayout.List:
                 <partial name="~/Views/SmartSearch/Layouts/_List.cshtml" model="Model" />
                 break;
+            case ResultLayout.Statements:
+                <partial name="~/Views/SmartSearch/Layouts/_Statements.cshtml" model="Model" />
+                break;
             default:
                 if (Model.NameResolution?.Status != NameResolutionStatus.Suggest)
                 {

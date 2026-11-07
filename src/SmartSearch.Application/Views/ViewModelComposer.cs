@@ -40,6 +40,15 @@ public sealed partial class ViewModelComposer(
         var entityType = req.Items[0].EntityType;
         var map = await templates.GetAsync(req.Context.TenantId, req.IntentCode, entityType, layout, ct);
 
+        // Statements need a "statement" sentence in the template; fall back to Cards if it has none
+        if (layout == ResultLayout.Statements && string.IsNullOrWhiteSpace(map.Statement))
+        {
+            layout = ResultLayout.Cards;
+            map = await templates.GetAsync(req.Context.TenantId, req.IntentCode, entityType, layout, ct);
+        }
+
+        var hasStatements = await templates.ExistsAsync(req.Context.TenantId, req.IntentCode, entityType, ResultLayout.Statements, ct);
+
         var items = req.Items.Select((raw, i) => BuildItem(raw, i + 1, map, req.Context)).ToList();
 
         return new SmartSearchResponse
@@ -49,9 +58,7 @@ public sealed partial class ViewModelComposer(
             InterpretedAs = req.InterpretedAs,
             IntentCode = req.IntentCode,
             Layout = layout,
-            AvailableLayouts = req.Items.Count == 1
-                ? [ResultLayout.Panel, ResultLayout.Cards]
-                : [ResultLayout.Cards, ResultLayout.List],
+            AvailableLayouts = AvailableLayouts(req.Items.Count, hasStatements),
             Columns = map.Fields.Where(f => !f.PanelOnly)
                                 .Select(f => new ResultColumn(f.Key, f.Label, ParseType(f.Type), f.Sortable))
                                 .ToList(),
@@ -101,9 +108,76 @@ public sealed partial class ViewModelComposer(
             // links the user may not open were already dropped by the provider
             PrimaryLink = map.PrimaryLink is not null ? links.GetValueOrDefault(map.PrimaryLink) : null,
             SecondaryLinks = map.SecondaryLinks.Select(k => links.GetValueOrDefault(k))
-                                               .OfType<ResultLink>().ToList()
+                                               .OfType<ResultLink>().ToList(),
+            Statement = string.IsNullOrWhiteSpace(map.Statement)
+                ? []
+                : BuildStatement(map.Statement, raw.Fields, links)
         };
     }
+
+    private static IReadOnlyList<ResultLayout> AvailableLayouts(int count, bool hasStatements)
+    {
+        var list = count == 1
+            ? new List<ResultLayout> { ResultLayout.Panel, ResultLayout.Cards }
+            : new List<ResultLayout> { ResultLayout.Cards, ResultLayout.List };
+        if (hasStatements) list.Add(ResultLayout.Statements);
+        return list;
+    }
+
+    /// <summary>
+    /// Turns "[{FirstName} {LastName}](ClientChart) was seen for **{VisitType}** on {VisitDate:date}"
+    /// into segments. Link URLs come only from the ILinkProvider by key; if the user may not
+    /// open that page (link missing), the text is kept but rendered without a link.
+    /// </summary>
+    private static List<StatementSegment> BuildStatement(
+        string template, IReadOnlyDictionary<string, object?> data, IReadOnlyDictionary<string, ResultLink> links)
+    {
+        var segments = new List<StatementSegment>();
+        var last = 0;
+
+        foreach (Match m in StatementToken().Matches(template))
+        {
+            AddPlain(template[last..m.Index]);
+
+            if (m.Groups["linkText"].Success)
+            {
+                var text = FillValues(m.Groups["linkText"].Value, data);
+                if (text.Length > 0)
+                    segments.Add(links.TryGetValue(m.Groups["linkKey"].Value, out var link)
+                        ? new StatementSegment(text, SegmentStyle.Plain, link)
+                        : new StatementSegment(text, SegmentStyle.Strong));
+            }
+            else if (m.Groups["strong"].Success)
+            {
+                var text = FillValues(m.Groups["strong"].Value, data);
+                if (text.Length > 0) segments.Add(new StatementSegment(text, SegmentStyle.Strong));
+            }
+            else if (m.Groups["muted"].Success)
+            {
+                var text = FillValues(m.Groups["muted"].Value, data);
+                if (text.Length > 0) segments.Add(new StatementSegment(text, SegmentStyle.Muted));
+            }
+
+            last = m.Index + m.Length;
+        }
+        AddPlain(template[last..]);
+        return segments;
+
+        void AddPlain(string part)
+        {
+            var text = FillValues(part, data);
+            if (text.Length > 0) segments.Add(new StatementSegment(text));
+        }
+    }
+
+    /// <summary>Placeholder fill without trimming, so spaces between segments survive.</summary>
+    private static string FillValues(string template, IReadOnlyDictionary<string, object?> data) =>
+        Placeholder().Replace(template, m =>
+        {
+            var value = data.GetValueOrDefault(m.Groups["key"].Value);
+            var type = m.Groups["fmt"].Success ? ParseType(m.Groups["fmt"].Value) : FieldType.Text;
+            return Format(value, type) ?? "";
+        });
 
     /// <summary>Replaces {Field} and {Field:date|datetime} placeholders. Missing parts are trimmed away.</summary>
     private static string Fill(string template, IReadOnlyDictionary<string, object?> data)
@@ -152,6 +226,9 @@ public sealed partial class ViewModelComposer(
     [GeneratedRegex(@"\{(?<key>[A-Za-z0-9_]+)(:(?<fmt>[a-z]+))?\}")]
     private static partial Regex Placeholder();
 
+    [GeneratedRegex(@"\[(?<linkText>[^\]]+)\]\((?<linkKey>[A-Za-z0-9_]+)\)|\*\*(?<strong>.+?)\*\*|~~(?<muted>.+?)~~")]
+    private static partial Regex StatementToken();
+
     [GeneratedRegex(@"\b[A-Z]{2,4}\s+(?=·|$)")]   // a label like "DOB " or "MRN " whose value was empty
     private static partial Regex EmptySegment();
 }
@@ -173,6 +250,9 @@ public interface IViewTemplateStore
 {
     /// <summary>Tenant template if present, otherwise system default (TenantId 0). Cached in memory.</summary>
     Task<FieldMap> GetAsync(int tenantId, string intentCode, string entityType, ResultLayout layout, CancellationToken ct);
+
+    /// <summary>True if an active template exists for that layout (tenant or system default).</summary>
+    Task<bool> ExistsAsync(int tenantId, string intentCode, string entityType, ResultLayout layout, CancellationToken ct);
 }
 
 public interface ILayoutSelector

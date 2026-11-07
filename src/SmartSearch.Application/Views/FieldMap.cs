@@ -10,6 +10,16 @@ public sealed class FieldMap
 {
     [JsonPropertyName("title")]          public string Title { get; init; } = "";
     [JsonPropertyName("subtitle")]       public string? Subtitle { get; init; }
+
+    /// <summary>
+    /// Sentence template for the Statements layout. Syntax:
+    ///   {Field} / {Field:date|datetime}   value placeholder
+    ///   [text](LinkKey)                   link to an existing page (URL comes from ILinkProvider, never from here)
+    ///   **text**                          emphasis
+    ///   ~~text~~                          muted
+    /// Example: "[{FirstName} {LastName}](ClientChart) was seen for [{VisitType}](VisitDetail) by **{ProviderName}** on {VisitDate:datetime}"
+    /// </summary>
+    [JsonPropertyName("statement")]      public string? Statement { get; init; }
     [JsonPropertyName("fields")]         public List<FieldDef> Fields { get; init; } = [];
     [JsonPropertyName("badges")]         public List<BadgeDef> Badges { get; init; } = [];
     [JsonPropertyName("primaryLink")]    public string? PrimaryLink { get; init; }

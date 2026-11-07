@@ -1,0 +1,37 @@
+@*
+    STATEMENTS - one sentence per result, with links inside the sentence:
+      "Vatsal Patel was seen for Psychiatric eval by Dr. Anita Shah on 02-Nov-2026 9:30 AM"
+    The sentence comes from the "statement" in ss.ViewTemplate.FieldMapJson.
+    DESIGN: restructure freely. Keep data-ss-item and the _Statement partial (it keeps data-ss-link).
+*@
+@model SmartSearchResponse
+
+<ol class="ss-statements">
+    @foreach (var item in Model.Items)
+    {
+        <li class="ss-statements__item" data-ss-item data-entity-type="@item.EntityType" data-entity-id="@item.EntityId" data-client-id="@item.ClientId" data-rank="@item.Rank">
+            <span class="ss-avatar ss-avatar--sm" aria-hidden="true">@item.Initials</span>
+            <div class="ss-statements__body">
+                @if (item.Statement.Count > 0)
+                {
+                    <partial name="~/Views/SmartSearch/Parts/_Statement.cshtml" model="item.Statement" />
+                }
+                else
+                {
+                    @* Template without a statement: fall back to title + primary link *@
+                    <p class="ss-statement">
+                        @if (item.PrimaryLink is { } link)
+                        {
+                            <a class="ss-statement__link" href="@link.Url" data-ss-link="@link.Key">@item.Title</a>
+                        }
+                        else
+                        {
+                            @item.Title
+                        }
+                    </p>
+                }
+            </div>
+            <partial name="~/Views/SmartSearch/Parts/_Badges.cshtml" model="item.Badges" />
+        </li>
+    }
+</ol>

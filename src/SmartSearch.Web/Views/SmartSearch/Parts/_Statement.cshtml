@@ -1,0 +1,17 @@
+@*
+    Renders one statement sentence from segments. Every segment is HTML-encoded by Razor.
+    Links keep data-ss-link so clicks are tracked like any other result link.
+    Keep this markup on one line per segment: whitespace between segments is meaningful.
+*@
+@model IReadOnlyList<StatementSegment>
+<p class="ss-statement">@foreach (var s in Model)
+{
+    if (s.Link is { } link)
+    {<a class="ss-statement__link" href="@link.Url" data-ss-link="@link.Key">@s.Text</a>}
+    else if (s.Style == SegmentStyle.Strong)
+    {<strong class="ss-statement__strong">@s.Text</strong>}
+    else if (s.Style == SegmentStyle.Muted)
+    {<span class="ss-statement__muted">@s.Text</span>}
+    else
+    {@s.Text}
+}</p>

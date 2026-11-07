@@ -31,7 +31,11 @@ public sealed record SmartSearchResponse
     public SearchMessage? Message { get; init; }
 }
 
-public enum ResultLayout { Panel, Cards, List, Empty }
+/// <summary>
+/// Statements = one sentence per result with links inside the sentence,
+/// e.g. "Vatsal Patel was seen for Psychiatric eval by Dr. Shah on 02-Nov-2026".
+/// </summary>
+public enum ResultLayout { Panel, Cards, List, Statements, Empty }
 
 public sealed record ResultColumn(string Key, string Label, FieldType Type, bool Sortable = false);
 
@@ -52,7 +56,19 @@ public sealed record ResultItem
 
     public ResultLink? PrimaryLink { get; init; }
     public IReadOnlyList<ResultLink> SecondaryLinks { get; init; } = [];
+
+    /// <summary>
+    /// The result as a sentence, split into segments. Filled when the ViewTemplate has a "statement".
+    /// Views render segments in order; a segment with a Link becomes an anchor.
+    /// Never contains raw HTML, so Razor encodes every piece.
+    /// </summary>
+    public IReadOnlyList<StatementSegment> Statement { get; init; } = [];
 }
+
+/// <summary>One piece of a statement sentence.</summary>
+public sealed record StatementSegment(string Text, SegmentStyle Style = SegmentStyle.Plain, ResultLink? Link = null);
+
+public enum SegmentStyle { Plain, Strong, Muted }
 
 public sealed record ResultField(
     string Key,

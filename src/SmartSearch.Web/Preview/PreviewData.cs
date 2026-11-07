@@ -12,6 +12,7 @@ public static class PreviewScenarios
         new("panel",  "Single result (Panel)",       "Get me latest visit for vatsal patel"),
         new("cards",  "Several results (Cards)",     "Get me latest visit for vatsal"),
         new("list",   "Many results (List)",         "Show visits for patel"),
+        new("statements", "Sentences with links (Summary)", "Summarize recent visits for vatsal"),
         new("suggest","Misspelled name (Did you mean)", "Get me latest visit for vatsl"),
         new("empty",  "No results",                  "Latest visit for zzqx"),
         new("error",  "Error",                       "trigger error"),
@@ -50,6 +51,7 @@ public static class PreviewData
             "panel"   => Visits(req, [Visit(Clients[0], 0)], req.Layout ?? ResultLayout.Panel, "Latest visit for clients matching \"vatsal patel\""),
             "cards"   => Visits(req, Clients.Select((c, i) => Visit(c, i)).ToList(), req.Layout ?? ResultLayout.Cards, "Latest visit for clients matching \"vatsal\""),
             "list"    => Visits(req, ManyVisits(), req.Layout ?? ResultLayout.List, "Visits for clients matching \"patel\"", paged: true),
+            "statements" => Visits(req, ManyVisits().Take(6).ToList(), req.Layout ?? ResultLayout.Statements, "Recent visits for clients matching \"vatsal\""),
             "suggest" => Suggest(req),
             "empty"   => Empty(req),
             "error"   => new SmartSearchResponse
@@ -67,6 +69,7 @@ public static class PreviewData
         if (q.Contains("error")) return "error";
         if (q.Contains("vatsl") || q.Contains("watsal") || q.Contains("vastal")) return "suggest";
         if (q.Contains("zz")) return "empty";
+        if (q.Contains("summar")) return "statements";
         if (q.Contains("vatsal patel")) return "panel";
         if (q.Contains("patel") || q.Contains("visits")) return "list";
         return "cards";
@@ -92,7 +95,9 @@ public static class PreviewData
             InterpretedAs = interpreted,
             IntentCode = "GetLatestVisit",
             Layout = layout,
-            AvailableLayouts = visits.Count == 1 ? [ResultLayout.Panel, ResultLayout.Cards] : [ResultLayout.Cards, ResultLayout.List],
+            AvailableLayouts = visits.Count == 1
+                ? [ResultLayout.Panel, ResultLayout.Cards, ResultLayout.Statements]
+                : [ResultLayout.Cards, ResultLayout.List, ResultLayout.Statements],
             Columns =
             [
                 new("VisitDate", "Last visit", FieldType.DateTime, true),
@@ -132,6 +137,18 @@ public static class PreviewData
             "Draft" => BadgeTone.Warning,
             _ => BadgeTone.Danger
         })],
+        // Same as ViewModelComposer output for:
+        // "[{FirstName} {LastName}](ClientChart) was seen for [{VisitType}](VisitDetail) by **{ProviderName}** on {VisitDate:datetime} ~~at {Location}~~"
+        Statement =
+        [
+            new($"{v.Client.First} {v.Client.Last}", SegmentStyle.Plain, new("ClientChart", "Client chart", $"/Client/{v.Client.Id}/Chart?src=smartsearch&q={QueryId}")),
+            new(" was seen for "),
+            new(v.Type, SegmentStyle.Plain, new("VisitDetail", "Open visit", $"/Client/{v.Client.Id}/Visit/{v.Id}?src=smartsearch&q={QueryId}")),
+            new(" by "),
+            new(v.Provider, SegmentStyle.Strong),
+            new($" on {v.When} "),
+            new($"at {v.Location}", SegmentStyle.Muted),
+        ],
         PrimaryLink = new("VisitDetail", "Open visit", $"/Client/{v.Client.Id}/Visit/{v.Id}?src=smartsearch&q={QueryId}"),
         SecondaryLinks =
         [
