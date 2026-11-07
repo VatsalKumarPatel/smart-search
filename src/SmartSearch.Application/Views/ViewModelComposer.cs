@@ -32,22 +32,27 @@ public sealed partial class ViewModelComposer(
                 IntentCode = req.IntentCode,
                 Layout = ResultLayout.Empty,
                 NameResolution = req.NameResolution,
-                FollowUps = req.FollowUps
+                FollowUps = req.FollowUps,
+                Notes = req.Notes ?? []
             };
         }
 
         var layout = await layoutSelector.SelectAsync(req.Context, req.IntentCode, req.Items.Count, req.RequestedLayout, ct);
         var entityType = req.Items[0].EntityType;
-        var map = await templates.GetAsync(req.Context.TenantId, req.IntentCode, entityType, layout, ct);
+        // dynamic queries bring their own template (built from the semantic catalog)
+        var map = req.TemplateOverride ?? await templates.GetAsync(req.Context.TenantId, req.IntentCode, entityType, layout, ct);
 
         // Statements need a "statement" sentence in the template; fall back to Cards if it has none
         if (layout == ResultLayout.Statements && string.IsNullOrWhiteSpace(map.Statement))
         {
             layout = ResultLayout.Cards;
-            map = await templates.GetAsync(req.Context.TenantId, req.IntentCode, entityType, layout, ct);
+            if (req.TemplateOverride is null)
+                map = await templates.GetAsync(req.Context.TenantId, req.IntentCode, entityType, layout, ct);
         }
 
-        var hasStatements = await templates.ExistsAsync(req.Context.TenantId, req.IntentCode, entityType, ResultLayout.Statements, ct);
+        var hasStatements = req.TemplateOverride is not null
+            ? !string.IsNullOrWhiteSpace(req.TemplateOverride.Statement)
+            : await templates.ExistsAsync(req.Context.TenantId, req.IntentCode, entityType, ResultLayout.Statements, ct);
 
         var items = req.Items.Select((raw, i) => BuildItem(raw, i + 1, map, req.Context)).ToList();
 
@@ -64,9 +69,11 @@ public sealed partial class ViewModelComposer(
                                 .ToList(),
             Items = items,
             TotalCount = req.TotalCount,
+            HasMore = req.HasMore,
             Paging = req.Paging,
             NameResolution = req.NameResolution,
-            FollowUps = req.FollowUps
+            FollowUps = req.FollowUps,
+            Notes = req.Notes ?? []
         };
     }
 
@@ -244,7 +251,10 @@ public sealed record ComposeRequest(
     ResultLayout? RequestedLayout,
     PagingInfo? Paging,
     NameResolution? NameResolution,
-    IReadOnlyList<FollowUpSuggestion> FollowUps);
+    IReadOnlyList<FollowUpSuggestion> FollowUps,
+    FieldMap? TemplateOverride = null,
+    IReadOnlyList<string>? Notes = null,
+    bool HasMore = false);
 
 public interface IViewTemplateStore
 {

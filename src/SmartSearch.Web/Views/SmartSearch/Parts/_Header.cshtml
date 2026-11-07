@@ -16,12 +16,16 @@
         @if (!string.IsNullOrWhiteSpace(Model.InterpretedAs))
         {
             <p class="ss-header__interpreted">
-                <span class="ss-header__label">Showing</span> @Model.InterpretedAs
+                <span class="ss-header__label">@(Model.Sections.Count > 0 ? "Answering" : "Showing")</span> @Model.InterpretedAs
             </p>
         }
         @if (Model.TotalCount > 0)
         {
-            <p class="ss-header__count">@Model.TotalCount @(Model.TotalCount == 1 ? "result" : "results")</p>
+            <p class="ss-header__count">@Model.TotalCount@(Model.HasMore ? "+" : "") @(Model.TotalCount == 1 && !Model.HasMore ? "result" : "results")</p>
+        }
+        @foreach (var note in Model.Notes)
+        {
+            <p class="ss-header__note">@note</p>
         }
     </div>
 

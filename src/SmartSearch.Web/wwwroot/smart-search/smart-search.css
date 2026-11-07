@@ -81,11 +81,19 @@
 .ss-header__interpreted { margin: 0; font-size: 15px; }
 .ss-header__label { color: var(--ss-text-muted); }
 .ss-header__count { margin: 2px 0 0; font-size: 13px; color: var(--ss-text-muted); }
+.ss-header__note { margin: 4px 0 0; font-size: 12px; color: var(--ss-warning-fg); }
 
 .ss-toggle { display: inline-flex; border: 1px solid var(--ss-border); border-radius: var(--ss-radius); overflow: hidden; background: var(--ss-surface); }
 .ss-toggle__btn { font: inherit; font-size: 13px; padding: 6px 14px; border: 0; background: transparent; cursor: pointer; color: var(--ss-text-muted); }
 .ss-toggle__btn + .ss-toggle__btn { border-left: 1px solid var(--ss-border); }
 .ss-toggle__btn[aria-pressed="true"] { background: var(--ss-primary-soft); color: var(--ss-primary); font-weight: 600; }
+
+/* ---------- multi-part answers ---------- */
+.ss-section { display: flex; flex-direction: column; gap: 10px; }
+.ss-section + .ss-section { padding-top: var(--ss-gap-lg); border-top: 1px solid var(--ss-border); }
+.ss-section__title { margin: 0; font-size: 16px; font-weight: 600; }
+.ss-results--section { gap: var(--ss-gap); }
+.ss-results--section .ss-header__interpreted { font-size: 13px; color: var(--ss-text-muted); }
 
 /* ---------- avatar, badges, buttons ---------- */
 .ss-avatar {

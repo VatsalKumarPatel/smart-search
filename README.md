@@ -10,10 +10,12 @@ Database/
   001_SmartSearch_Schema.sql      tables, indexes, name-matching procedures (schema "ss")
   002_SmartSearch_Seed.sql        intents, layout rules, view templates, nicknames
   003_SmartSearch_Statements.sql  adds the Statements layout (sentence per result with inline links)
+  004_SmartSearch_SemanticCatalog.sql  semantic catalog for dynamic (free-form, multi-domain) questions
 src/
   SmartSearch.Contracts/
     SearchContracts.cs            ISearchCapability, ILinkProvider, ResultItemData, SearchContext
     ViewModels/SmartSearchViewModels.cs   THE contract the views read (SmartSearchResponse)
+  SmartSearch.Application/Dynamic/   dynamic query engine (plan, validator, SQL compiler, planner, parser)
   SmartSearch.Application/Views/
     FieldMap.cs                   C# shape of ViewTemplate.FieldMapJson
     ViewModelComposer.cs          raw data + template + links -> SmartSearchResponse
@@ -32,7 +34,7 @@ src/
       smart-search.js             search, layout toggle, did-you-mean, sorting, click tracking, mic
       pcm-worklet.js              mic audio -> 16 kHz PCM16 for Transcribe
 design-preview/
-  smart-search-states.html        static page showing all 9 UI states (open in a browser to review)
+  smart-search-states.html        static page showing all 10 UI states (open in a browser to review)
   smart-search-states.png         screenshot of the same page
 docs/diagrams/
   EHR-Smart-Search.mmd            architecture diagram (Mermaid; Lucid: Insert > Diagram as code)
@@ -41,6 +43,21 @@ docs/diagrams/
 ```
 
 ![Architecture](docs/diagrams/EHR-Smart-Search.png)
+
+## Dynamic and multi-domain questions
+
+Users can ask things no predefined intent covers, including several domains at once:
+*"provide me details for last medication for vatsal and his last billing details"*.
+Bedrock turns the question into a JSON **query plan** over a curated **semantic catalog**, with one part per domain.
+.NET validates each part (catalog, permissions, limits, time window), resolves the person's name once,
+compiles each part to parameterized SQL, runs the parts in parallel on a read-only replica, and shows **one section per part**.
+The AI never writes SQL and never sees data.
+
+See **[docs/dynamic-query.md](docs/dynamic-query.md)** for the design, safety rules, plan language and how to add a domain.
+
+```
+dotnet run --project tests/SmartSearch.Tests     # 72 checks: validator, compiler, parser, multi-part flow (no AWS / SQL Server needed)
+```
 
 ## How the pieces connect
 

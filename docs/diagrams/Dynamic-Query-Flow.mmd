@@ -1,0 +1,19 @@
+flowchart TB
+  Q["User question<br/>last medication for vatsal and his last billing details"] --> R{"Predefined intent<br/>with high confidence?"}
+  R -->|yes| P["Predefined capability<br/>tuned query"]
+  R -->|no| S["SchemaRetriever<br/>relevant catalog entities + examples"]
+  S --> B["Bedrock: build_query_plan<br/>forced tool call, catalog names only"]
+  B --> V{"QueryPlanValidator<br/>per part: catalog, permissions,<br/>limits, time window"}
+  V -->|errors| B2["One repair round<br/>model sees the errors"]
+  B2 --> V
+  V -->|clarify| C["Clarifying question + options"]
+  V -->|valid parts| N{"NameMatcher<br/>each name once, shared"}
+  N -->|unsure| D["Did you mean ...<br/>re-run stored plan, no LLM"]
+  N -->|matched| X["SqlCompiler per part<br/>parameters, TenantId, access filter, TOP"]
+  X --> E1[("Read replica<br/>ss.v_Medication")]
+  X --> E2[("Read replica<br/>ss.v_Charge")]
+  E1 --> RP["ResultParser + DynamicTemplateBuilder"]
+  E2 --> RP
+  RP --> M["DynamicResponseMapper<br/>one section per part"]
+  P --> M
+  M --> UI["Razor views<br/>Panel / Cards / List / Summary per section<br/>deep links to existing pages"]

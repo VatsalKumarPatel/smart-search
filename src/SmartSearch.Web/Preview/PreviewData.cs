@@ -13,6 +13,7 @@ public static class PreviewScenarios
         new("cards",  "Several results (Cards)",     "Get me latest visit for vatsal"),
         new("list",   "Many results (List)",         "Show visits for patel"),
         new("statements", "Sentences with links (Summary)", "Summarize recent visits for vatsal"),
+        new("multi",  "Two questions in one (Medication + Billing)", "Provide me details for last medication for vatsal and his last billing details"),
         new("suggest","Misspelled name (Did you mean)", "Get me latest visit for vatsl"),
         new("empty",  "No results",                  "Latest visit for zzqx"),
         new("error",  "Error",                       "trigger error"),
@@ -52,6 +53,7 @@ public static class PreviewData
             "cards"   => Visits(req, Clients.Select((c, i) => Visit(c, i)).ToList(), req.Layout ?? ResultLayout.Cards, "Latest visit for clients matching \"vatsal\""),
             "list"    => Visits(req, ManyVisits(), req.Layout ?? ResultLayout.List, "Visits for clients matching \"patel\"", paged: true),
             "statements" => Visits(req, ManyVisits().Take(6).ToList(), req.Layout ?? ResultLayout.Statements, "Recent visits for clients matching \"vatsal\""),
+            "multi"   => Multi(req),
             "suggest" => Suggest(req),
             "empty"   => Empty(req),
             "error"   => new SmartSearchResponse
@@ -69,6 +71,7 @@ public static class PreviewData
         if (q.Contains("error")) return "error";
         if (q.Contains("vatsl") || q.Contains("watsal") || q.Contains("vastal")) return "suggest";
         if (q.Contains("zz")) return "empty";
+        if (q.Contains("medication") && q.Contains("bill")) return "multi";
         if (q.Contains("summar")) return "statements";
         if (q.Contains("vatsal patel")) return "panel";
         if (q.Contains("patel") || q.Contains("visits")) return "list";
@@ -156,6 +159,72 @@ public static class PreviewData
             new("ClientVisits", "All visits", $"/Client/{v.Client.Id}/Visits?src=smartsearch&q={QueryId}"),
         ]
     };
+
+    /// <summary>One question, two domains: each part is its own section with its own layout and links.</summary>
+    private static SmartSearchResponse Multi(SearchRequest req)
+    {
+        static ResultLink L(string key, string label, string url) => new(key, label, $"{url}?src=smartsearch&q={QueryId}");
+
+        var med = new SmartSearchResponse
+        {
+            QueryId = QueryId, Query = req.Q ?? "", IntentCode = "Dynamic", SectionTitle = "Last medication",
+            InterpretedAs = "Latest medication per client, where client name matches \"vatsal\", newest first",
+            Layout = ResultLayout.Panel, TotalCount = 1,
+            Items =
+            [
+                new ResultItem
+                {
+                    EntityType = "Medication", EntityId = 5501, ClientId = 1042, Rank = 1,
+                    Title = "Vatsal Patel", Subtitle = "Sertraline 50 mg", Initials = "VP",
+                    Fields =
+                    [
+                        new("Medication_DrugName", "Medication", "Sertraline", FieldType.Text),
+                        new("Medication_Strength", "Strength", "50 mg", FieldType.Text),
+                        new("Medication_Frequency", "Frequency", "Once daily", FieldType.Text),
+                        new("Medication_Prescriber", "Prescriber", "Dr. Anita Shah", FieldType.Person),
+                        new("Medication_StartDate", "Start date", "20-Oct-2026", FieldType.Date),
+                    ],
+                    Badges = [new("Active", BadgeTone.Success)],
+                    PrimaryLink = L("MedicationDetail", "Open medication", "/Client/1042/Medications/5501"),
+                    SecondaryLinks = [L("ClientChart", "Client chart", "/Client/1042/Chart")]
+                }
+            ]
+        };
+
+        var bill = new SmartSearchResponse
+        {
+            QueryId = QueryId, Query = req.Q ?? "", IntentCode = "Dynamic", SectionTitle = "Last billing",
+            InterpretedAs = "Latest billing charge per client, where client name matches \"vatsal\", newest first",
+            Layout = ResultLayout.Panel, TotalCount = 1,
+            Items =
+            [
+                new ResultItem
+                {
+                    EntityType = "Charge", EntityId = 9901, ClientId = 1042, Rank = 1,
+                    Title = "Vatsal Patel", Subtitle = "02-Nov-2026 · 90834", Initials = "VP",
+                    Fields =
+                    [
+                        new("Charge_ServiceDate", "Service date", "02-Nov-2026", FieldType.Date),
+                        new("Charge_ProcedureCode", "Procedure code", "90834 (Psychotherapy, 45 min)", FieldType.Text),
+                        new("Charge_BilledAmount", "Billed amount", "$145.00", FieldType.Number),
+                        new("Charge_Payer", "Payer", "Medicaid", FieldType.Text),
+                        new("Charge_Balance", "Balance due", "$145.00", FieldType.Number),
+                    ],
+                    Badges = [new("Submitted", BadgeTone.Info)],
+                    PrimaryLink = L("ChargeDetail", "Open charge", "/Billing/Charges/9901"),
+                    SecondaryLinks = [L("ClientChart", "Client chart", "/Client/1042/Chart")]
+                }
+            ]
+        };
+
+        return new SmartSearchResponse
+        {
+            QueryId = QueryId, Query = req.Q ?? "", IntentCode = "Dynamic",
+            InterpretedAs = "last medication and last billing",
+            Layout = ResultLayout.Empty, TotalCount = 2,
+            Sections = [med, bill]
+        };
+    }
 
     private static SmartSearchResponse Suggest(SearchRequest req) => new()
     {

@@ -20,7 +20,12 @@ public sealed record SmartSearchResponse
     public IReadOnlyList<ResultColumn> Columns { get; init; } = [];
     public IReadOnlyList<ResultItem> Items { get; init; } = [];
     public int TotalCount { get; init; }
+    /// <summary>True when more rows exist than were returned (dynamic queries show "50+ results").</summary>
+    public bool HasMore { get; init; }
     public PagingInfo? Paging { get; init; }
+
+    /// <summary>Assumptions the system made, e.g. "Showing the last 12 months". Show them near the header.</summary>
+    public IReadOnlyList<string> Notes { get; init; } = [];
 
     public NameResolution? NameResolution { get; init; }
 
@@ -29,6 +34,15 @@ public sealed record SmartSearchResponse
 
     /// <summary>Set when the search failed; views show a friendly message.</summary>
     public SearchMessage? Message { get; init; }
+
+    /// <summary>
+    /// A question with several parts ("last medication for vatsal and his last billing details")
+    /// comes back as one section per part. Each section is a full response with its own layout.
+    /// </summary>
+    public IReadOnlyList<SmartSearchResponse> Sections { get; init; } = [];
+
+    /// <summary>Heading of this response when it is a section, e.g. "Last medication".</summary>
+    public string? SectionTitle { get; init; }
 }
 
 /// <summary>

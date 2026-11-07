@@ -4,15 +4,32 @@
 *@
 @model SmartSearchResponse
 
-<section class="ss-results"
-         data-ss-results
-         data-ss-query-id="@Model.QueryId"
+<section class="ss-results@(Model.SectionTitle is null ? "" : " ss-results--section")"
+         data-ss-results="@(Model.SectionTitle is null ? "" : null)"
+         data-ss-query-id="@(Model.SectionTitle is null ? Model.QueryId.ToString() : null)"
          data-ss-layout-current="@Model.Layout"
          aria-label="Smart search results">
 
-    @if (Model.Message is not null)
+    @if (Model.Sections.Count > 0)
+    {
+        @* several parts in one question: one section per part, each rendered by this same view *@
+        <partial name="~/Views/SmartSearch/Parts/_Header.cshtml" model="Model" />
+        @foreach (var part in Model.Sections)
+        {
+            <section class="ss-section" aria-label="@part.SectionTitle">
+                <h3 class="ss-section__title">@part.SectionTitle</h3>
+                <partial name="~/Views/SmartSearch/_Results.cshtml" model="part" />
+            </section>
+        }
+    }
+    else if (Model.Message is not null)
     {
         <partial name="~/Views/SmartSearch/Parts/_Message.cshtml" model="Model.Message" />
+        @* e.g. clarifying options from a dynamic query *@
+        @if (Model.FollowUps.Count > 0)
+        {
+            <partial name="~/Views/SmartSearch/Parts/_FollowUps.cshtml" model="Model.FollowUps" />
+        }
     }
     else
     {
