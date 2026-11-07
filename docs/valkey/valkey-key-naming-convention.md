@@ -33,10 +33,10 @@ Session: p:{<partnerId>}:u:{userId}:s:{sessionId}:{module}:{entity}[...]:v{n}
 | --- | --- | --- | --- |
 | Root | Yes | `g` for global data, or `p:{partnerId}` for anything owned by a partner. The braces are literal (cluster hash tag) | `p:{1042}` |
 | Owner path | Per scope | `r:{roleId}`, `u:{userId}`, or `u:{userId}:s:{sessionId}`; omitted for partner-level data | `u:55120` |
-| `module` | Yes | Owning module name, matches the `*.Contracts` module; at least 2 characters | `scheduling` |
-| `entity` | Yes | Noun for what is stored, singular | `appointment` |
-| `id` | Optional | Identifier of the entity instance | `88731` |
-| `qualifier` | Optional | Variant such as a filter, page or view | `list:today` |
+| `module` | Yes | Always from the `KeyModule` enum — never typed as text | `scheduling` |
+| `entity` | Yes | Noun for what is stored, singular; defined once by the owning module | `appointment` |
+| `id` | Optional | Typed `long` or `Guid` of the entity instance | `88731` |
+| `qualifier` | Optional | Fixed variant (`list:today`) or `FilterHash` of user input | `a3f9c21b7e4d0a55` |
 | `v{n}` | Yes | Schema version of the value; bump when the payload shape changes | `v1` |
 
 **Grammar rules**
@@ -125,8 +125,9 @@ Developers never concatenate key strings. They ask a factory for a key in a scop
 **Design**
 
 - `IValkeyKeyFactory` — one method per scope; the method signature forces the right owning IDs (you cannot build a user key without a partner ID).
-- `ValkeyKey` — fluent builder for the optional parts (`Id`, `Qualifier`, `HashedQualifier`, `Version`), plus `Build()`, scan patterns and the default TTL for its scope.
-- Per-module key definitions — each module declares its keys once as extension methods, so the version and parts live in one place.
+- `KeyModule` enum — the only way to name a module, so `"sheduleing"` vs `"Schedule"` cannot happen.
+- `ValkeyKey` — fluent builder for the optional parts (`Id`, `Qualifier`, `FilterHash`, `Version`), plus `Build()`, `Template()`, scan patterns and the default TTL for its scope.
+- Key definitions owned by the module that owns the data — written once as extension methods, used by every team.
 
 **Registration**
 
@@ -138,30 +139,43 @@ builder.Services.AddSingleton<IValkeyKeyFactory, ValkeyKeyFactory>();
 **Factory**
 
 ```csharp
+/// <summary>Closed list of modules. Adding one is a reviewed package change (rare).</summary>
+public enum KeyModule
+{
+    Core,
+    Billing,
+    Clinical,
+    Medical,
+    Scheduling,
+    Security,
+    Realtime,
+    Platform
+}
+
 public interface IValkeyKeyFactory
 {
-    ValkeyKey Global(string module, string entity);
-    ValkeyKey Partner(long partnerId, string module, string entity);
-    ValkeyKey Role(long partnerId, long roleId, string module, string entity);
-    ValkeyKey User(long partnerId, long userId, string module, string entity);
-    ValkeyKey Session(long partnerId, long userId, string sessionId, string module, string entity);
+    ValkeyKey Global(KeyModule module, string entity);
+    ValkeyKey Partner(long partnerId, KeyModule module, string entity);
+    ValkeyKey Role(long partnerId, long roleId, KeyModule module, string entity);
+    ValkeyKey User(long partnerId, long userId, KeyModule module, string entity);
+    ValkeyKey Session(long partnerId, long userId, string sessionId, KeyModule module, string entity);
 }
 
 public sealed class ValkeyKeyFactory : IValkeyKeyFactory
 {
-    public ValkeyKey Global(string module, string entity)
+    public ValkeyKey Global(KeyModule module, string entity)
         => new(KeyScope.Global, null, [], module, entity);
 
-    public ValkeyKey Partner(long partnerId, string module, string entity)
+    public ValkeyKey Partner(long partnerId, KeyModule module, string entity)
         => new(KeyScope.Partner, partnerId, [], module, entity);
 
-    public ValkeyKey Role(long partnerId, long roleId, string module, string entity)
+    public ValkeyKey Role(long partnerId, long roleId, KeyModule module, string entity)
         => new(KeyScope.Role, partnerId, ["r", Str(roleId)], module, entity);
 
-    public ValkeyKey User(long partnerId, long userId, string module, string entity)
+    public ValkeyKey User(long partnerId, long userId, KeyModule module, string entity)
         => new(KeyScope.User, partnerId, ["u", Str(userId)], module, entity);
 
-    public ValkeyKey Session(long partnerId, long userId, string sessionId, string module, string entity)
+    public ValkeyKey Session(long partnerId, long userId, string sessionId, KeyModule module, string entity)
         => new(KeyScope.Session, partnerId, ["u", Str(userId), "s", sessionId], module, entity);
 
     private static string Str(long value) => value.ToString(CultureInfo.InvariantCulture);
@@ -184,11 +198,12 @@ public sealed partial class ValkeyKey
     private readonly string _module;
     private readonly string _entity;
     private readonly List<string> _qualifiers = [];
+    private bool _hasHashedPart;
     private string? _id;
     private int _version = 1;
 
     internal ValkeyKey(KeyScope scope, long? partnerId,
-                       string[] ownerPath, string module, string entity)
+                       string[] ownerPath, KeyModule module, string entity)
     {
         if (scope == KeyScope.Global && partnerId is not null)
             throw new ArgumentException("Global keys cannot carry a partner ID.");
@@ -198,33 +213,37 @@ public sealed partial class ValkeyKey
         _scope = scope;
         _root = scope == KeyScope.Global ? "g" : $"p:{{{partnerId}}}";   // p:{1042}
         _ownerPath = ownerPath.Select(Segment).ToArray();
-        _module = ModuleSegment(module);
+        _module = ToKebab(module.ToString());                              // Scheduling -> scheduling
         _entity = Segment(entity);
     }
 
     public KeyScope Scope => _scope;
 
-    public ValkeyKey Id(object id)
-    {
-        _id = Segment(id switch
-        {
-            Guid g => g.ToString("N"),
-            _ => Convert.ToString(id, CultureInfo.InvariantCulture) ?? string.Empty
-        });
-        return this;
-    }
+    public ValkeyKey Id(long id) { _id = id.ToString(CultureInfo.InvariantCulture); return this; }
+    public ValkeyKey Id(Guid id) { _id = id.ToString("N"); return this; }
 
+    /// <summary>Fixed, developer-written variants only (e.g. "list", "today"). Never user input.</summary>
     public ValkeyKey Qualifier(params string[] parts)
     {
         foreach (var part in parts) _qualifiers.Add(Segment(part));
         return this;
     }
 
-    /// <summary>For long or free-text input (search filters): stores a 16-char SHA-256 prefix.</summary>
-    public ValkeyKey HashedQualifier(string rawValue)
+    /// <summary>
+    /// For user input (search filters). Trims, lowercases and sorts every field, then hashes,
+    /// so "Smith", " smith " and field order all give the same key, and no PHI reaches the key.
+    /// </summary>
+    public ValkeyKey FilterHash<T>(T filter) where T : notnull
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawValue));
+        var node = JsonSerializer.SerializeToNode(filter)!.AsObject();
+        var clean = new SortedDictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var (name, value) in node)
+            clean[name.ToLowerInvariant()] = value?.ToString().Trim().ToLowerInvariant();
+
+        var canonical = JsonSerializer.Serialize(clean);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
         _qualifiers.Add(Convert.ToHexString(hash, 0, 8).ToLowerInvariant());
+        _hasHashedPart = true;
         return this;
     }
 
@@ -247,8 +266,20 @@ public sealed partial class ValkeyKey
 
         var key = sb.ToString();
         if (key.Length > MaxLength)
-            throw new InvalidOperationException($"Key exceeds {MaxLength} chars: {key}. Use HashedQualifier.");
+            throw new InvalidOperationException($"Key exceeds {MaxLength} chars: {key}.");
         return key;
+    }
+
+    /// <summary>Key shape with IDs and hashes masked, for logs and metrics: p:{*}:u:*:billing:claim-search:*:v1</summary>
+    public string Template()
+    {
+        var sb = new StringBuilder(_scope == KeyScope.Global ? "g" : "p:{*}");
+        for (var i = 0; i < _ownerPath.Length; i += 2)
+            sb.Append(Sep).Append(_ownerPath[i]).Append(Sep).Append('*');
+        sb.Append(Sep).Append(_module).Append(Sep).Append(_entity);
+        if (_id is not null) sb.Append(Sep).Append('*');
+        foreach (var q in _qualifiers) sb.Append(Sep).Append(_hasHashedPart && q.Length == 16 ? "*" : q);
+        return sb.Append(Sep).Append('v').Append(_version).ToString();
     }
 
     /// <summary>SCAN pattern for everything owned by this partner/role/user/session.</summary>
@@ -257,9 +288,10 @@ public sealed partial class ValkeyKey
     /// <summary>SCAN pattern for this entity under this owner, all ids/qualifiers/versions.</summary>
     public string EntityPattern() => $"{OwnerPrefix()}:{_module}:{_entity}:*";
 
-    /// <summary>Default TTL for the scope with ±10% jitter. Session TTL comes from the session timeout.</summary>
+    /// <summary>Default TTL per scope with ±10% jitter. Keys with user-input hashes get 5 minutes.</summary>
     public TimeSpan DefaultTtl(TimeSpan? sessionTimeout = null)
     {
+        if (_hasHashedPart) return TimeSpan.FromMinutes(5);
         var baseTtl = _scope switch
         {
             KeyScope.Global  => TimeSpan.FromHours(24),
@@ -280,50 +312,47 @@ public sealed partial class ValkeyKey
     private string OwnerPrefix()
         => _ownerPath.Length == 0 ? _root : $"{_root}{Sep}{string.Join(Sep, _ownerPath)}";
 
-    private static string ModuleSegment(string module)
-    {
-        var m = Segment(module);
-        if (m.Length < 2)
-            throw new ArgumentException("Module names need 2+ characters; single letters are scope markers.");
-        return m;
-    }
+    private static string ToKebab(string pascal)
+        => KebabRegex().Replace(pascal, "$1-$2").ToLowerInvariant();     // ClaimSearch -> claim-search
 
     internal static string Segment(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
             throw new ArgumentException("Key segment cannot be empty.");
-        var v = value.Trim().ToLowerInvariant();
-        if (!SegmentRegex().IsMatch(v))
+        if (!SegmentRegex().IsMatch(value))      // no silent trimming/lowercasing: wrong input fails loudly
             throw new ArgumentException($"Invalid key segment '{value}'. Allowed: a-z, 0-9, '-'.");
-        return v;
+        return value;
     }
 
     [GeneratedRegex("^[a-z0-9-]+$")]
     private static partial Regex SegmentRegex();
+
+    [GeneratedRegex("([a-z0-9])([A-Z])")]
+    private static partial Regex KebabRegex();
 }
 ```
 
 **Module key definitions** — each module owns its keys in one file, so names and versions are never repeated at call sites:
 
 ```csharp
-// Scheduling module (internal to the module)
-internal static class SchedulingKeys
+// Owned by Scheduling. Shared keys live in Common.API so every team calls the same method.
+public static class SchedulingKeys
 {
-    private const string Module = "scheduling";
+    public static ValkeyKey Appointment(this IValkeyKeyFactory keys, long partnerId, long appointmentId)
+        => keys.Partner(partnerId, KeyModule.Scheduling, "appointment").Id(appointmentId).Version(1);
 
     public static ValkeyKey TodayAppointments(this IValkeyKeyFactory keys, long partnerId, long userId)
-        => keys.User(partnerId, userId, Module, "appointment").Qualifier("list", "today").Version(1);
-
-    public static ValkeyKey Appointment(this IValkeyKeyFactory keys, long partnerId, long appointmentId)
-        => keys.Partner(partnerId, Module, "appointment").Id(appointmentId).Version(2);
+        => keys.User(partnerId, userId, KeyModule.Scheduling, "appointment").Qualifier("list", "today").Version(1);
 }
 
-// Security module
-internal static class SecurityKeys
+// Billing-only key: lives in the Billing repo, still uses the KeyModule enum.
+internal static class BillingKeys
 {
-    public static ValkeyKey RoleMenu(this IValkeyKeyFactory keys, long partnerId, long roleId)
-        => keys.Role(partnerId, roleId, "security", "menu").Version(1);
+    public static ValkeyKey ClaimSearch(this IValkeyKeyFactory keys, long partnerId, long userId, ClaimSearchFilter filter)
+        => keys.User(partnerId, userId, KeyModule.Billing, "claim-search").FilterHash(filter).Version(1);
 }
+
+public sealed record ClaimSearchFilter(string? PatientName, string? Status, long? PayerId);
 ```
 
 **Usage** (StackExchange.Redis works unchanged against Valkey)
@@ -345,16 +374,140 @@ await foreach (var k in _server.KeysAsync(pattern: key.OwnerPattern(), pageSize:
 - Unit-test each module's key definitions against the expected string, so a renamed part or version bump shows up in code review.
 - Optional: a `ForCurrentPartner(...)` overload that reads the partner ID from `Kernel.Tenancy`, so callers cannot pass the wrong tenant.
 
+## Preventing naming mistakes and user-input drift
+
+No free text reaches the key builder. Module names come from an enum, IDs are typed, and user input is cleaned and hashed, so the same data always gets the same key.
+
+**Problem 1 — different teams spell modules differently.** With plain strings, Billing writes `"sheduleing"` and Medical writes `"Schedule"`. Both compile, but they create two keys for the same data:
+
+```
+p:{1042}:sheduleing:appointment:v1   ← Billing
+p:{1042}:schedule:appointment:v1     ← Medical
+```
+
+Fixes:
+
+- **`KeyModule` enum.** Everyone writes `KeyModule.Scheduling`. A typo does not compile, and IntelliSense shows the list.
+- **The owner defines a module's keys once.** Scheduling writes `SchedulingKeys.Appointment(...)`; Billing and Medical call that method instead of typing `"appointment"`. Need a key that doesn't exist? Ask the owner to add it.
+
+| Key used by | Where the definition lives |
+| --- | --- |
+| One repo only | That repo, using `KeyModule` |
+| More than one domain | Common.API package, owned by the owning domain |
+
+**Problem 2 — user input changes the key.** A search for `"Smith"`, `"smith "`, or the same filters in a different order would otherwise create different keys, cause cache misses, and put patient names into keys.
+
+Fixes:
+
+1. **Typed IDs only.** `Id(long)` / `Id(Guid)` and `long partnerId` — a user cannot type a value that changes the key's shape.
+2. **User filters go through `FilterHash(filter)`.** It trims, lowercases and sorts every field, then hashes to 16 characters. `"Smith"`, `" SMITH"` and any field order give the same key, and no PHI appears in it:
+
+```
+p:{1042}:u:55120:billing:claim-search:a3f9c21b7e4d0a55:v1
+```
+
+3. **`Qualifier()` is for fixed, developer-written words only** (`"list"`, `"today"`). It rejects anything outside `a-z 0-9 -` instead of silently changing it, so bad input fails in testing, not in production.
+4. **Keys built from user input get a 5-minute TTL** by default, so search keys clean themselves up.
+
+**Finding which key is which.** Log `key.Template()` (`p:{*}:u:*:billing:claim-search:*:v1`) instead of the full key, and track hit/miss per template. In Dev/QA, also log the filter next to its hash so a hash can be traced back.
+
+## Suggestion: Common.API shared package
+
+Create one **Common.API** repo for everything every API repeats today: middleware pipeline, authentication, authorization, and the Redis/Valkey connection plus the key builder. Today the same code is copied into each API solution in slightly different versions, so one fix means editing every API.
+
+**What moves into Common.API**
+
+| Area | Contents |
+| --- | --- |
+| Middleware pipeline | Exception handling, correlation ID, request logging, security headers, CORS defaults |
+| Authentication | JWT bearer setup, token validation, claims mapping (partner, user, role) |
+| Authorization | Policies, permission attribute, partner-access check |
+| Tenancy | `ITenantContext` resolved from claims (partner ID, user ID, role ID) |
+| Caching | One Valkey/Redis connection (`IConnectionMultiplexer`), `IValkeyCache`, `ValkeyKey`, `KeyModule`, shared key definitions |
+| Observability | Logging, tracing and health checks |
+
+Valkey speaks the Redis protocol, so one `StackExchange.Redis` connection setup serves both. Each API points it at its environment's endpoint through configuration.
+
+**Repo layout**
+
+```
+Common.API/
+  src/
+    Common.Api.Hosting/        middleware pipeline, AddCommonApi()/UseCommonApi()
+    Common.Api.Security/       authentication, authorization, tenancy
+    Common.Api.Caching/        Valkey connection, IValkeyCache, key builder, KeyModule, shared keys
+    Common.Api.Observability/  logging, tracing, health checks
+  tests/                       golden key tests, middleware and auth tests
+  Common.API.sln
+```
+
+Each folder ships as its own NuGet package, so a change to auth does not force a caching upgrade. A single package is simpler, but every small fix would then reach every API.
+
+**What each API's `Program.cs` becomes**
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddCommonApi(builder.Configuration, options =>
+{
+    options.ServiceName = "billing-api";
+    options.UseValkey = true;
+});
+
+builder.Services.AddControllers();
+
+var app = builder.Build();
+app.UseCommonApi();          // exception handling, correlation ID, auth, authz in the right order
+app.MapControllers();
+app.Run();
+```
+
+```csharp
+// Inside Common.Api.Hosting
+public static IServiceCollection AddCommonApi(this IServiceCollection services,
+    IConfiguration config, Action<CommonApiOptions>? configure = null)
+{
+    var options = new CommonApiOptions();
+    configure?.Invoke(options);
+
+    services.AddCommonSecurity(config);        // JWT, policies, ITenantContext
+    services.AddCommonObservability(options);  // logging, tracing, health checks
+    if (options.UseValkey)
+        services.AddValkey(config);            // one IConnectionMultiplexer, IValkeyCache, IValkeyKeyFactory
+    return services;
+}
+
+public static WebApplication UseCommonApi(this WebApplication app)
+{
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
+    app.UseMiddleware<CorrelationIdMiddleware>();
+    app.UseAuthentication();
+    app.UseMiddleware<TenantResolutionMiddleware>();
+    app.UseAuthorization();
+    app.MapHealthChecks("/health");
+    return app;
+}
+```
+
+Every API then gets the same pipeline in the same order, and fixing a middleware bug is one change in Common.API.
+
+**Keeping it approval-friendly.** Our approval process applies at every stage, so Common.API is designed to change rarely:
+
+- Only stable, non-domain code goes in. Billing rules stay in Billing.
+- The Valkey key format is frozen in version 1.x. Golden tests check exact key strings, so a format change cannot slip in. A format change would be 2.0.0 — a planned project, not a routine update.
+- Repos on different 1.x versions still produce identical keys, so there is no rush to update all 13 at once.
+- Each API adopts a new version **in its next regular release**, through the approvals that release already has. Urgent fixes go out under one change request covering all affected services.
+- New repo-specific keys need no package change: they live in that repo and use `KeyModule`.
 ## Using the same builder in every repo
 
-The builder ships once as an internal NuGet package, and that package is the only supported way to reach Valkey. Every repo then uses the same rules, and checks in the build, in Valkey and in an audit job catch anything that slips through.
+The builder ships inside Common.API as the `Common.Api.Caching` package, and that package is the only supported way to reach Valkey. Every repo then uses the same rules, and checks in the build, in Valkey and in an audit job catch anything that slips through.
 
 **1. One shared package**
 
-- Publish `Qualifacts.Caching.Valkey` (name to confirm) to the internal feed (Azure Artifacts, AWS CodeArtifact or GitHub Packages).
-- It contains `ValkeyKey`, `IValkeyKeyFactory`, a typed cache wrapper and a DI extension `services.AddValkey(configuration)`.
+- Publish `Common.Api.Caching` (with the other Common.API packages) to the internal feed (Azure Artifacts, AWS CodeArtifact or GitHub Packages).
+- It contains `ValkeyKey`, `KeyModule`, `IValkeyKeyFactory`, `IValkeyCache`, shared key definitions and the DI extension `services.AddValkey(configuration)`.
 - It follows semantic versioning: a key-format change is a **major** version. Golden-string unit tests inside the package lock the format.
-- Each repo pins the version with Central Package Management (`Directory.Packages.props`). Dependabot or Renovate raises upgrade PRs across repos.
+- Each repo pins the version with Central Package Management (`Directory.Packages.props`) and updates it in its next regular release.
 
 **2. Make the raw client unreachable**
 
@@ -434,5 +587,5 @@ Every new key is added to this table in the same PR that introduces it. The rows
 - [ ] Are we on Valkey Cluster or a single primary with replicas? This decides how scan-based invalidation runs.
 - [ ] If more than one product shares a Valkey instance later, do we add a product prefix then?
 - [ ] Migration plan for existing keys: dual-write and read-through, or a cut-over per module?
-- [ ] Package name, owning team and internal feed for `Qualifacts.Caching.Valkey`.
+- [ ] Owning team and internal feed for Common.API; final package names for `Common.Api.*`.
 - [ ] Which repos write to Valkey from non-.NET code and need the port?
