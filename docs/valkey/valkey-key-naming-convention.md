@@ -23,20 +23,19 @@ Why now: keys are currently created ad hoc across modules, which makes them hard
 Each Valkey instance belongs to one environment, so keys carry no app or environment prefix. Every tenant key starts with the partner. A version suffix is **not** part of the key by default; it is added only when needed (see When to add a version).
 
 ```
-Global:  g:{module}:{entity}[:{id}][:{qualifier}...][:v{n}]
+Global:  g:{name}[:{id}][:{qualifier}...][:v{n}]
 Row:     p:{<partnerId>}:t:{table}:{rowId}[:v{n}]
-Partner: p:{<partnerId>}:{module}:{entity}[:{id}][:{qualifier}...][:v{n}]
-Role:    p:{<partnerId>}:r:{roleId}:{module}:{entity}[...][:v{n}]
-User:    p:{<partnerId>}:u:{userId}:{module}:{entity}[...][:v{n}]
-Session: p:{<partnerId>}:u:{userId}:s:{sessionId}:{module}:{entity}[...][:v{n}]
+Partner: p:{<partnerId>}:{name}[:{id}][:{qualifier}...][:v{n}]
+Role:    p:{<partnerId>}:r:{roleId}:{name}[...][:v{n}]
+User:    p:{<partnerId>}:u:{userId}:{name}[...][:v{n}]
+Session: p:{<partnerId>}:u:{userId}:s:{sessionId}:{name}[...][:v{n}]
 ```
 
 | Part | Required | Rule | Example |
 | --- | --- | --- | --- |
 | Root | Yes | `g` for global data, or `p:{partnerId}` for anything owned by a partner. The braces are literal (cluster hash tag) | `p:{1042}` |
 | Owner path | Per scope | `t` for a table row; `r:{roleId}`, `u:{userId}` or `u:{userId}:s:{sessionId}`; omitted for partner-level data | `u:55120` |
-| `module` | Yes, except row keys | Always from the `KeyModule` enum — never typed as text | `billing` |
-| `table` / `entity` | Yes | Row keys: the table name, taken from the row DTO. Other keys: noun for what is stored, singular | `appointment` |
+| `table` / `name` | Yes | Row keys: the table name, taken from the row DTO. Other keys: a name from the shared `CacheName` enum — unique across all teams, never typed as text | `appointment`, `claim-summary` |
 | `id` | Optional | Typed `long` or `Guid` | `88731` |
 | `qualifier` | Optional | Fixed variant (`list:today`) or `FilterHash` of user input | `a3f9c21b7e4d0a55` |
 | `v{n}` | Optional | Only when the value's shape changes; starts at `v2` | `v2` |
@@ -45,7 +44,7 @@ Session: p:{<partnerId>}:u:{userId}:s:{sessionId}:{module}:{entity}[...][:v{n}]
 
 1. Colon `:` is the only separator. Words inside a part use kebab-case: `home-metrics`, never `HomeMetrics` or `home_metrics`.
 2. Lowercase ASCII letters, digits and hyphens only. No spaces, dots, slashes or emails.
-3. Single letters `g`, `p`, `t`, `r`, `u`, `s` are reserved scope markers, and `v` followed by digits is reserved for versions. Module, entity and qualifier names can never take these forms.
+3. Single letters `g`, `p`, `t`, `r`, `u`, `s` are reserved scope markers, and `v` followed by digits is reserved for versions. `CacheName` names, table names and qualifiers can never take these forms.
 4. IDs are internal numeric or GUID IDs only — never names, MRNs, SSNs, emails or any PHI. Keys show up in logs, `MONITOR` and `SCAN` output.
 5. GUIDs are written lowercase without braces or hyphens (`n` format) to keep keys short.
 6. Total length stays under 150 characters; user input is hashed with `FilterHash`.
@@ -65,18 +64,18 @@ Pick the narrowest scope that is still shared by everyone who reads the value. I
 
 | Scope | Code | Key starts with | Use for | Example key |
 | --- | --- | --- | --- | --- |
-| Global | `g` | `g:` | Reference data identical for all partners: lookup lists, feature catalogue, app config | `g:config:feature-flag` |
+| Global | `g` | `g:` | Reference data identical for all partners: lookup lists, feature catalogue, app config | `g:feature-flag` |
 | Row | `t` | `p:{partnerId}:t:` | One table row, shared by every module | `p:{1042}:t:appointment:88731` |
-| Partner | `p` | `p:{partnerId}:` | Module views across many rows: partner settings, dashboard aggregates | `p:{1042}:billing:payer-list` |
-| Role | `r` | `p:{partnerId}:r:{roleId}:` | Role permissions, menu/sidebar per role | `p:{1042}:r:7:security:menu` |
-| User | `u` | `p:{partnerId}:u:{userId}:` | User preferences, recent clients, user search results | `p:{1042}:u:55120:home:metrics` |
-| Session | `s` | `p:{partnerId}:u:{userId}:s:{sessionId}:` | Login session data, wizard state, SSE connection tracking | `p:{1042}:u:55120:s:9f2c41ab7d0e4c1a:auth:token-state` |
+| Partner | `p` | `p:{partnerId}:` | Views across many rows: partner settings, dashboard aggregates | `p:{1042}:payer-list` |
+| Role | `r` | `p:{partnerId}:r:{roleId}:` | Role permissions, menu/sidebar per role | `p:{1042}:r:7:role-menu` |
+| User | `u` | `p:{partnerId}:u:{userId}:` | User preferences, recent clients, user search results | `p:{1042}:u:55120:recent-clients` |
+| Session | `s` | `p:{partnerId}:u:{userId}:s:{sessionId}:` | Login session data, wizard state, SSE connection tracking | `p:{1042}:u:55120:s:9f2c41ab7d0e4c1a:token-state` |
 
 **Choosing a scope**
 
 - Value is one table row → `t`, no matter which module reads it.
 - Value is the same for every partner → `g`.
-- Value combines rows into a module-specific view, the same for everyone in the partner → `p` with the module.
+- Value combines rows into a view that is the same for everyone in the partner → `p`.
 - Value depends on what a role can see (menus, permission sets) → `r`. Prefer this over `u` for permissions: one entry serves every user with that role.
 - Value is personal to one user and should survive logout → `u`.
 - Value must disappear at logout or session expiry → `s`, always with a TTL no longer than the session timeout.
@@ -88,10 +87,10 @@ Pick the narrowest scope that is still shared by everyone who reads the value. I
 | One table row | Delete `p:{1042}:t:appointment:88731` directly (no scan needed) |
 | All of one partner | `p:{1042}:*` |
 | All cached rows of one table for a partner | `p:{1042}:t:appointment:*` |
+| One view for a partner | `p:{1042}:claim-summary*` |
 | One role | `p:{1042}:r:7:*` |
 | One user (incl. their sessions) | `p:{1042}:u:55120:*` |
 | One session | `p:{1042}:u:55120:s:9f2c41ab7d0e4c1a:*` |
-| All global data of one module | `g:scheduling:*` |
 
 ## Shared row keys and CDC invalidation
 
@@ -104,14 +103,14 @@ A table row is cached once, under one key, in one shape, and every module reads 
 1. **One shape.** Each cacheable table has one row DTO in Common.API, marked with the table name. Every module gets the same object and uses the fields it needs.
 2. **One loader.** On a cache miss, every module calls the same `IRowCache.GetAsync`. It loads the row by primary key, caches it and returns it. No team writes its own loader.
 3. **CDC deletes, the next read reloads.** The existing CDC pipeline (AWS DMS → EventBridge → Lambda) already sees every change with its table name. The CDC Lambda builds the row key from the table name, partner ID and primary key, and deletes it. It deletes rather than writes, so two writers can never race.
-4. **Module views depend on tables.** Cached views that combine rows (claim summary, dashboard metrics, role menu) list the tables they depend on in the registry. When CDC sees a change in one of those tables for a partner, it also deletes that partner's view keys.
+4. **Views depend on tables.** Cached views that combine rows (claim summary, dashboard metrics, role menu) list the tables they depend on in the registry. When CDC sees a change in one of those tables for a partner, it also deletes that partner's view keys.
 
 ```
 Appointment 88731 updated (partner 1042)
    → DMS / CDC event: table = Appointment, PartnerId = 1042, AppointmentId = 88731
    → CDC Lambda deletes  p:{1042}:t:appointment:88731
-   → registry: billing:claim-summary depends on Appointment
-   → CDC Lambda deletes  p:{1042}:billing:claim-summary:*
+   → registry: claim-summary depends on Appointment
+   → CDC Lambda deletes  p:{1042}:claim-summary*
    → next read by any module reloads fresh data
 ```
 
@@ -170,14 +169,14 @@ Every key gets a TTL unless the registry marks it as permanent and names an owne
 
 Add ±10% random jitter to TTLs on bulk-loaded keys so they do not all expire in the same second.
 
-**Non-cache key types** use the same format, with a reserved `entity` prefix so they are never confused with cached data:
+**Non-cache key types** use the same format; their `CacheName` starts with a kind prefix so they are never confused with cached data:
 
-| Kind | Entity prefix | Example |
+| Kind | Name prefix | Example |
 | --- | --- | --- |
-| Pub/Sub channel | `ch` | `p:{1042}:notify:ch-client-update` |
-| Stream | `st` | `p:{1042}:notify:st-cdc-event` |
-| Distributed lock | `lock` | `p:{1042}:billing:lock-claim-batch:3301` |
-| Counter / rate limit | `ctr` | `p:{1042}:u:55120:auth:ctr-login-fail` |
+| Pub/Sub channel | `ch` | `p:{1042}:ch-client-update` |
+| Stream | `st` | `p:{1042}:st-cdc-event` |
+| Distributed lock | `lock` | `p:{1042}:lock-claim-batch:3301` |
+| Counter / rate limit | `ctr` | `p:{1042}:u:55120:ctr-login-fail` |
 
 **Cluster and hash tags**
 
@@ -200,9 +199,9 @@ Developers never concatenate key strings. They ask a factory for a key in a scop
 
 - `IValkeyKeyFactory` — one method per scope; the method signature forces the right owning IDs.
 - `Row<TRow>()` — the table name comes from the row DTO's `[CacheTable]` attribute, so nobody types it.
-- `KeyModule` enum — the only way to name a module, so `"sheduleing"` vs `"Schedule"` cannot happen.
+- `CacheName` enum — the one list of every other key name, shared by all teams, so a name cannot be misspelled or used twice.
 - `ValkeyKey` — fluent builder for the optional parts (`Id`, `Qualifier`, `FilterHash`, `Version`), plus `Build()`, `Template()`, scan patterns and the default TTL for its scope.
-- Module view keys are defined once by the module that owns them, as extension methods.
+- The team that owns a name writes its key method once; other teams call that method.
 
 **Registration**
 
@@ -214,17 +213,25 @@ builder.Services.AddSingleton<IValkeyKeyFactory, ValkeyKeyFactory>();
 **Factory**
 
 ```csharp
-/// <summary>Closed list of modules. Adding one is a reviewed package change (rare).</summary>
-public enum KeyModule
+/// <summary>
+/// The one list of every non-row key name, shared by all teams. Each name exists once and is
+/// specific (ClaimSummary, not Summary). Adding one is a small reviewed Common.API change.
+/// </summary>
+public enum CacheName
 {
-    Core,
-    Billing,
-    Clinical,
-    Medical,
-    Scheduling,
-    Security,
-    Realtime,
-    Platform
+    FeatureFlag,
+    PayerList,
+    ClaimSummary,
+    ClaimSearch,
+    HomeMetrics,
+    RoleMenu,
+    RecentClients,
+    TokenState,
+    SseConnection,
+    ChClientUpdate,     // Pub/Sub channel
+    StCdcEvent,         // stream
+    LockClaimBatch,     // distributed lock
+    CtrLoginFail        // counter
 }
 
 [AttributeUsage(AttributeTargets.Class)]
@@ -236,33 +243,33 @@ public sealed class CacheTableAttribute(string table) : Attribute
 
 public interface IValkeyKeyFactory
 {
-    ValkeyKey Global(KeyModule module, string entity);
+    ValkeyKey Global(CacheName name);
     ValkeyKey Row<TRow>(long partnerId, long rowId) where TRow : class;
-    ValkeyKey Partner(long partnerId, KeyModule module, string entity);
-    ValkeyKey Role(long partnerId, long roleId, KeyModule module, string entity);
-    ValkeyKey User(long partnerId, long userId, KeyModule module, string entity);
-    ValkeyKey Session(long partnerId, long userId, string sessionId, KeyModule module, string entity);
+    ValkeyKey Partner(long partnerId, CacheName name);
+    ValkeyKey Role(long partnerId, long roleId, CacheName name);
+    ValkeyKey User(long partnerId, long userId, CacheName name);
+    ValkeyKey Session(long partnerId, long userId, string sessionId, CacheName name);
 }
 
 public sealed class ValkeyKeyFactory : IValkeyKeyFactory
 {
-    public ValkeyKey Global(KeyModule module, string entity)
-        => new(KeyScope.Global, null, [], Mod(module), entity);
+    public ValkeyKey Global(CacheName name)
+        => new(KeyScope.Global, null, [], Name(name));
 
     public ValkeyKey Row<TRow>(long partnerId, long rowId) where TRow : class
-        => new ValkeyKey(KeyScope.Row, partnerId, [], "t", TableName<TRow>()).Id(rowId);
+        => new ValkeyKey(KeyScope.Row, partnerId, ["t"], TableName<TRow>()).Id(rowId);
 
-    public ValkeyKey Partner(long partnerId, KeyModule module, string entity)
-        => new(KeyScope.Partner, partnerId, [], Mod(module), entity);
+    public ValkeyKey Partner(long partnerId, CacheName name)
+        => new(KeyScope.Partner, partnerId, [], Name(name));
 
-    public ValkeyKey Role(long partnerId, long roleId, KeyModule module, string entity)
-        => new(KeyScope.Role, partnerId, ["r", Str(roleId)], Mod(module), entity);
+    public ValkeyKey Role(long partnerId, long roleId, CacheName name)
+        => new(KeyScope.Role, partnerId, ["r", Str(roleId)], Name(name));
 
-    public ValkeyKey User(long partnerId, long userId, KeyModule module, string entity)
-        => new(KeyScope.User, partnerId, ["u", Str(userId)], Mod(module), entity);
+    public ValkeyKey User(long partnerId, long userId, CacheName name)
+        => new(KeyScope.User, partnerId, ["u", Str(userId)], Name(name));
 
-    public ValkeyKey Session(long partnerId, long userId, string sessionId, KeyModule module, string entity)
-        => new(KeyScope.Session, partnerId, ["u", Str(userId), "s", sessionId], Mod(module), entity);
+    public ValkeyKey Session(long partnerId, long userId, string sessionId, CacheName name)
+        => new(KeyScope.Session, partnerId, ["u", Str(userId), "s", sessionId], Name(name));
 
     /// <summary>Table name from [CacheTable]: "Appointment" -> appointment, "Client_Address" -> client-address.</summary>
     public static string TableName<TRow>()
@@ -272,7 +279,7 @@ public sealed class ValkeyKeyFactory : IValkeyKeyFactory
         return ValkeyKey.ToKebab(attr.Table);
     }
 
-    private static string Mod(KeyModule module) => ValkeyKey.ToKebab(module.ToString());
+    private static string Name(CacheName name) => ValkeyKey.ToKebab(name.ToString());   // ClaimSummary -> claim-summary
     private static string Str(long value) => value.ToString(CultureInfo.InvariantCulture);
 }
 ```
@@ -289,16 +296,14 @@ public sealed partial class ValkeyKey
 
     private readonly KeyScope _scope;
     private readonly string _root;            // g | p:{1042}
-    private readonly string[] _ownerPath;     // [] | r:7 | u:55120 | u:55120:s:abc
-    private readonly string _module;          // billing | t (row keys)
-    private readonly string _entity;
+    private readonly string[] _ownerPath;     // [] | t | r:7 | u:55120 | u:55120:s:abc
+    private readonly string _name;            // claim-summary | appointment (row keys)
     private readonly List<string> _qualifiers = [];
     private bool _hasHashedPart;
     private string? _id;
     private int? _version;                    // no suffix unless Version() is called
 
-    internal ValkeyKey(KeyScope scope, long? partnerId,
-                       string[] ownerPath, string module, string entity)
+    internal ValkeyKey(KeyScope scope, long? partnerId, string[] ownerPath, string name)
     {
         if (scope == KeyScope.Global && partnerId is not null)
             throw new ArgumentException("Global keys cannot carry a partner ID.");
@@ -308,8 +313,7 @@ public sealed partial class ValkeyKey
         _scope = scope;
         _root = scope == KeyScope.Global ? "g" : $"p:{{{partnerId}}}";   // p:{1042}
         _ownerPath = ownerPath.Select(Segment).ToArray();
-        _module = module;
-        _entity = Segment(entity);
+        _name = NameSegment(name);
     }
 
     public KeyScope Scope => _scope;
@@ -332,8 +336,8 @@ public sealed partial class ValkeyKey
     {
         var node = JsonSerializer.SerializeToNode(filter)!.AsObject();
         var clean = new SortedDictionary<string, string?>(StringComparer.Ordinal);
-        foreach (var (name, value) in node)
-            clean[name.ToLowerInvariant()] = value?.ToString().Trim().ToLowerInvariant();
+        foreach (var (field, value) in node)
+            clean[field.ToLowerInvariant()] = value?.ToString().Trim().ToLowerInvariant();
 
         var canonical = JsonSerializer.Serialize(clean);
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
@@ -352,9 +356,7 @@ public sealed partial class ValkeyKey
 
     public string Build()
     {
-        var sb = new StringBuilder(OwnerPrefix())
-            .Append(Sep).Append(_module)
-            .Append(Sep).Append(_entity);
+        var sb = new StringBuilder(OwnerPrefix()).Append(Sep).Append(_name);
 
         if (_id is not null) sb.Append(Sep).Append(_id);
         foreach (var q in _qualifiers) sb.Append(Sep).Append(q);
@@ -366,13 +368,13 @@ public sealed partial class ValkeyKey
         return key;
     }
 
-    /// <summary>Key shape with IDs and hashes masked, for logs and metrics: p:{*}:u:*:billing:claim-search:*</summary>
+    /// <summary>Key shape with IDs and hashes masked, for logs and metrics: p:{*}:u:*:claim-search:*</summary>
     public string Template()
     {
         var sb = new StringBuilder(_scope == KeyScope.Global ? "g" : "p:{*}");
-        for (var i = 0; i < _ownerPath.Length; i += 2)
-            sb.Append(Sep).Append(_ownerPath[i]).Append(Sep).Append('*');
-        sb.Append(Sep).Append(_module).Append(Sep).Append(_entity);
+        foreach (var part in _ownerPath)
+            sb.Append(Sep).Append(part.Length == 1 ? part : "*");   // keep markers t/r/u/s, mask IDs
+        sb.Append(Sep).Append(_name);
         if (_id is not null) sb.Append(Sep).Append('*');
         foreach (var q in _qualifiers) sb.Append(Sep).Append(_hasHashedPart && q.Length == 16 ? "*" : q);
         if (_version is not null) sb.Append(Sep).Append('v').Append(_version);
@@ -382,8 +384,8 @@ public sealed partial class ValkeyKey
     /// <summary>SCAN pattern for everything owned by this partner/role/user/session.</summary>
     public string OwnerPattern() => $"{OwnerPrefix()}:*";
 
-    /// <summary>SCAN pattern for this entity under this owner, all ids/qualifiers/versions.</summary>
-    public string EntityPattern() => $"{OwnerPrefix()}:{_module}:{_entity}*";
+    /// <summary>SCAN pattern for this name under this owner, all ids/qualifiers/versions.</summary>
+    public string NamePattern() => $"{OwnerPrefix()}:{_name}*";
 
     /// <summary>Default TTL per scope with ±10% jitter. Keys with user-input hashes get 5 minutes.</summary>
     public TimeSpan DefaultTtl(TimeSpan? sessionTimeout = null)
@@ -410,9 +412,18 @@ public sealed partial class ValkeyKey
     private string OwnerPrefix()
         => _ownerPath.Length == 0 ? _root : $"{_root}{Sep}{string.Join(Sep, _ownerPath)}";
 
-    /// <summary>ClaimSearch -> claim-search, Client_Address -> client-address.</summary>
-    internal static string ToKebab(string name)
-        => KebabRegex().Replace(name, "$1-$2").Replace('_', '-').ToLowerInvariant();
+    /// <summary>ClaimSummary -> claim-summary, Client_Address -> client-address.</summary>
+    internal static string ToKebab(string value)
+        => KebabRegex().Replace(value, "$1-$2").Replace('_', '-').ToLowerInvariant();
+
+    /// <summary>Names sit right after the owner path, so they must never look like a scope marker.</summary>
+    private static string NameSegment(string value)
+    {
+        var v = Segment(value);
+        if (v.Length < 2)
+            throw new ArgumentException("Names need 2+ characters; single letters are scope markers.");
+        return v;
+    }
 
     internal static string Segment(string value)
     {
@@ -436,17 +447,17 @@ public sealed partial class ValkeyKey
 }
 ```
 
-**Module view key definitions** — each module owns its views in one file:
+**Key definitions** — the team that owns a name writes its key method once; other teams call it:
 
 ```csharp
-// Billing view built from several tables: lives with Billing, uses the KeyModule enum.
-internal static class BillingKeys
+// Owned by Billing, using shared names from CacheName.
+public static class BillingKeys
 {
     public static ValkeyKey ClaimSummary(this IValkeyKeyFactory keys, long partnerId, long claimId)
-        => keys.Partner(partnerId, KeyModule.Billing, "claim-summary").Id(claimId);
+        => keys.Partner(partnerId, CacheName.ClaimSummary).Id(claimId);
 
     public static ValkeyKey ClaimSearch(this IValkeyKeyFactory keys, long partnerId, long userId, ClaimSearchFilter filter)
-        => keys.User(partnerId, userId, KeyModule.Billing, "claim-search").FilterHash(filter);
+        => keys.User(partnerId, userId, CacheName.ClaimSearch).FilterHash(filter);
 }
 
 public sealed record ClaimSearchFilter(string? PatientName, string? Status, long? PayerId);
@@ -459,14 +470,14 @@ public sealed record ClaimSearchFilter(string? PatientName, string? Status, long
 var appt = await _rows.GetAsync<AppointmentRow>(tenant.PartnerId, appointmentId, ct);
 // p:{1042}:t:appointment:88731
 
-// A module view
+// A view
 var key = _keys.ClaimSummary(tenant.PartnerId, claimId);
 await _cache.SetAsync(key, summary);              // TTL defaults to key.DefaultTtl()
-// p:{1042}:billing:claim-summary:3301
+// p:{1042}:claim-summary:3301
 
 // Shape changed in a breaking way? Add a version to that one key only
-_keys.Partner(partnerId, KeyModule.Billing, "claim-summary").Id(claimId).Version(2);
-// p:{1042}:billing:claim-summary:3301:v2
+_keys.Partner(partnerId, CacheName.ClaimSummary).Id(claimId).Version(2);
+// p:{1042}:claim-summary:3301:v2
 ```
 
 **Guardrails**
@@ -477,20 +488,21 @@ _keys.Partner(partnerId, KeyModule.Billing, "claim-summary").Id(claimId).Version
 
 ## Preventing naming mistakes and user-input drift
 
-No free text reaches the key builder. Table names come from the row DTO, module names come from an enum, IDs are typed, and user input is cleaned and hashed, so the same data always gets the same key.
+No free text reaches the key builder. Table names come from the row DTO, every other name comes from one shared `CacheName` enum, IDs are typed, and user input is cleaned and hashed, so the same data always gets the same key.
 
-**Problem 1 — different teams spell names differently.** With plain strings, Billing writes `"sheduleing"` and Medical writes `"Schedule"`. Both compile, but they create two keys:
+**Problem 1 — teams name the same thing differently, or use the same name for different things.** With plain strings, Billing writes `"sheduleing-list"` and Medical writes `"schedule-list"` for the same data, and two teams can both call their own data `"summary"`:
 
 ```
-p:{1042}:sheduleing:appointment   ← Billing
-p:{1042}:schedule:appointment     ← Medical
+p:{1042}:sheduleing-list    ← Billing   (same data, two keys)
+p:{1042}:schedule-list      ← Medical
+p:{1042}:summary            ← Billing claims AND Clinical notes (different data, one key)
 ```
 
 Fixes:
 
-- **Row data uses the row key.** Both teams call `_rows.GetAsync<AppointmentRow>(...)` and get `p:{1042}:t:appointment:88731`. No module name, nothing to misspell.
-- **`KeyModule` enum for views.** Everyone writes `KeyModule.Scheduling`. A typo does not compile, and IntelliSense shows the list.
-- **The owner defines a view key once.** Other teams call that method instead of typing the entity name.
+- **Row data uses the row key.** Both teams call `_rows.GetAsync<AppointmentRow>(...)` and get `p:{1042}:t:appointment:88731`. There is no name to type.
+- **One `CacheName` enum for every other key.** Everyone picks from the same list in Common.API. A typo does not compile, IntelliSense shows the list, and each name exists only once, so two teams cannot both claim `summary`. Names must be specific: `claim-summary`, `note-summary`.
+- **One owner per name.** The registry records which team owns each name; other teams call the owner's key method instead of building the key themselves.
 
 **Problem 2 — user input changes the key.** A search for `"Smith"`, `"smith "`, or the same filters in a different order would otherwise create different keys, cause cache misses, and put patient names into keys.
 
@@ -500,13 +512,13 @@ Fixes:
 2. **User filters go through `FilterHash(filter)`.** It trims, lowercases and sorts every field, then hashes to 16 characters. `"Smith"`, `" SMITH"` and any field order give the same key, and no PHI appears in it:
 
 ```
-p:{1042}:u:55120:billing:claim-search:a3f9c21b7e4d0a55
+p:{1042}:u:55120:claim-search:a3f9c21b7e4d0a55
 ```
 
 3. **`Qualifier()` is for fixed, developer-written words only** (`"list"`, `"today"`). It rejects anything outside `a-z 0-9 -` instead of silently changing it, so bad input fails in testing, not in production.
 4. **Keys built from user input get a 5-minute TTL** by default, so search keys clean themselves up.
 
-**Finding which key is which.** Log `key.Template()` (`p:{*}:u:*:billing:claim-search:*`) instead of the full key, and track hit/miss per template. In Dev/QA, also log the filter next to its hash so a hash can be traced back. For a row, the key itself says everything: `p:{1042}:t:appointment:88731`.
+**Finding which key is which.** Log `key.Template()` (`p:{*}:u:*:claim-search:*`) instead of the full key, and track hit/miss per template. In Dev/QA, also log the filter next to its hash so a hash can be traced back. For a row, the key itself says everything: `p:{1042}:t:appointment:88731`.
 
 ## Suggestion: Common.API shared package
 
@@ -520,7 +532,7 @@ Create one **Common.API** repo for everything every API repeats today: middlewar
 | Authentication | JWT bearer setup, token validation, claims mapping (partner, user, role) |
 | Authorization | Policies, permission attribute, partner-access check |
 | Tenancy | `ITenantContext` resolved from claims (partner ID, user ID, role ID) |
-| Caching | One Valkey/Redis connection (`IConnectionMultiplexer`), `IValkeyCache`, `IRowCache`, row DTOs, `ValkeyKey`, `KeyModule` |
+| Caching | One Valkey/Redis connection (`IConnectionMultiplexer`), `IValkeyCache`, `IRowCache`, row DTOs, `ValkeyKey`, `CacheName` |
 | Observability | Logging, tracing and health checks |
 
 Valkey speaks the Redis protocol, so one `StackExchange.Redis` connection setup serves both. Each API points it at its environment's endpoint through configuration.
@@ -532,7 +544,7 @@ Common.API/
   src/
     Common.Api.Hosting/        middleware pipeline, AddCommonApi()/UseCommonApi()
     Common.Api.Security/       authentication, authorization, tenancy
-    Common.Api.Caching/        Valkey connection, IValkeyCache, IRowCache, row DTOs, key builder, KeyModule
+    Common.Api.Caching/        Valkey connection, IValkeyCache, IRowCache, row DTOs, key builder, CacheName
     Common.Api.Observability/  logging, tracing, health checks
   tests/                       golden key tests, middleware and auth tests
   Common.API.sln
@@ -595,7 +607,7 @@ Every API then gets the same pipeline in the same order, and fixing a middleware
 - Repos on different 1.x versions still produce identical keys, so there is no rush to update all 13 at once.
 - Adding a column to a row DTO is backward compatible. Removing or renaming one adds `.Version(2)` to that table's row key.
 - Each API adopts a new version **in its next regular release**, through the approvals that release already has. Urgent fixes go out under one change request covering all affected services.
-- New module view keys need no package change: they live in that repo and use `KeyModule`.
+- Adding a name to `CacheName` is a small, backward-compatible change that rides each API's regular release.
 
 ## Using the same builder in every repo
 
@@ -604,7 +616,7 @@ The builder ships inside Common.API as the `Common.Api.Caching` package, and tha
 **1. One shared package**
 
 - Publish `Common.Api.Caching` (with the other Common.API packages) to the internal feed (Azure Artifacts, AWS CodeArtifact or GitHub Packages).
-- It contains `ValkeyKey`, `KeyModule`, `IValkeyKeyFactory`, `IValkeyCache`, `IRowCache`, the row DTOs and the DI extension `services.AddValkey(configuration)`.
+- It contains `ValkeyKey`, `CacheName`, `IValkeyKeyFactory`, `IValkeyCache`, `IRowCache`, the row DTOs and the DI extension `services.AddValkey(configuration)`.
 - It follows semantic versioning: a key-format change is a **major** version. Golden-string unit tests inside the package lock the format.
 - Each repo pins the version with Central Package Management (`Directory.Packages.props`) and updates it in its next regular release.
 
@@ -654,22 +666,22 @@ Every new key is added to this table in the same PR that introduces it. The rows
 
 | Key template | Scope | Type | TTL | Owner | Depends on (CDC deletes when changed) | Builder method |
 | --- | --- | --- | --- | --- | --- | --- |
-| `g:config:feature-flag` | Global | Hash | 24 h | Platform | FeatureFlag | `PlatformKeys.FeatureFlags` |
+| `g:feature-flag` | Global | Hash | 24 h | Platform | FeatureFlag | `PlatformKeys.FeatureFlags` |
 | `p:{<partnerId>}:t:appointment:<appointmentId>` | Row | String (JSON) | 1 h | Common.API | Appointment | `IRowCache.GetAsync<AppointmentRow>` |
 | `p:{<partnerId>}:t:client:<clientId>` | Row | String (JSON) | 1 h | Common.API | Client | `IRowCache.GetAsync<ClientRow>` |
-| `p:{<partnerId>}:billing:claim-summary:<claimId>` | Partner | String (JSON) | 1 h | Billing | Claim, Appointment, Payer | `BillingKeys.ClaimSummary` |
-| `p:{<partnerId>}:dashboard:home-metrics` | Partner | String (JSON) | 1 h | Dashboard | Appointment, Claim, Note | `DashboardKeys.HomeMetrics` |
-| `p:{<partnerId>}:r:<roleId>:security:menu` | Role | String (JSON) | 30 min | Security | Role, RolePermission, Menu | `SecurityKeys.RoleMenu` |
-| `p:{<partnerId>}:u:<userId>:billing:claim-search:<hash>` | User | String (JSON) | 5 min | Billing | — (short TTL) | `BillingKeys.ClaimSearch` |
-| `p:{<partnerId>}:u:<userId>:s:<sessionId>:realtime:sse-connection` | Session | String | Session timeout | Realtime | — | `RealtimeKeys.SseConnection` |
-| `p:{<partnerId>}:realtime:ch-client-update` | Partner | Pub/Sub channel | — | Realtime | — | `RealtimeKeys.ClientUpdateChannel` |
+| `p:{<partnerId>}:claim-summary:<claimId>` | Partner | String (JSON) | 1 h | Billing | Claim, Appointment, Payer | `BillingKeys.ClaimSummary` |
+| `p:{<partnerId>}:home-metrics` | Partner | String (JSON) | 1 h | Dashboard | Appointment, Claim, Note | `DashboardKeys.HomeMetrics` |
+| `p:{<partnerId>}:r:<roleId>:role-menu` | Role | String (JSON) | 30 min | Security | Role, RolePermission, Menu | `SecurityKeys.RoleMenu` |
+| `p:{<partnerId>}:u:<userId>:claim-search:<hash>` | User | String (JSON) | 5 min | Billing | — (short TTL) | `BillingKeys.ClaimSearch` |
+| `p:{<partnerId>}:u:<userId>:s:<sessionId>:sse-connection` | Session | String | Session timeout | Realtime | — | `RealtimeKeys.SseConnection` |
+| `p:{<partnerId>}:ch-client-update` | Partner | Pub/Sub channel | — | Realtime | — | `RealtimeKeys.ClientUpdateChannel` |
 
 ## Rules
 
 **Do**
 
 - Cache a single table row only through `IRowCache` and its shared row key.
-- Build every other key through `IValkeyKeyFactory` and a key definition owned by its module.
+- Build every other key through `IValkeyKeyFactory` and a name from `CacheName`.
 - List the tables a cached view depends on in the registry, so CDC can delete it.
 - Set a TTL on every key; delete session keys explicitly on logout.
 - Add `.Version(n)` only when a value's shape changes in a breaking way.
@@ -677,10 +689,10 @@ Every new key is added to this table in the same PR that introduces it. The rows
 
 **Don't**
 
-- Cache your own copy of a table row under a module key.
+- Cache your own copy of a table row under a view name.
 - Put PHI, names, emails, MRNs or tokens inside a key.
 - Use `KEYS` in any environment except local dev; use `SCAN` (on every primary node in cluster mode) or direct deletes.
-- Share one view key between two modules — expose the data through the owning module's contract instead.
+- Reuse a `CacheName` for different data — add a new, specific name instead.
 - Store unbounded lists or values larger than ~100 KB under one key.
 
 ## Open questions
